@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Wavelength Scroll - Expanded</title>
+    <style>
+        /* CSS RESET & BASE STYLES */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* THE SPECTRUM GRADIENT */
+        .spectrum-container {
+            width: 100%;
+            background: linear-gradient(
+                to bottom,
+                #050505 0%,     /* Deep Space / Radio Waves */
+                #2a0000 10%,    /* Infrared */
+                #ff0000 25%,    /* Red */
+                #ff7f00 40%,    /* Orange */
+                #ffff00 55%,    /* Yellow */
+                #00ff00 70%,    /* Green */
+                #0000ff 85%,    /* Blue */
+                #4b0082 92%,    /* Indigo */
+                #8a2be2 97%,    /* Violet */
+                #050505 100%    /* Ultraviolet */
+            );
+        }
+
+        /* SCROLL SECTIONS */
+        .wavelength-section {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* GLASSMORPHISM INFO CARDS */
+        .info-card {
+            background: rgba(20, 20, 20, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 3rem 2.5rem;
+            max-width: 650px;
+            text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+
+        .info-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .info-card h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .info-card p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.85);
+            margin-bottom: 2rem;
+        }
+
+        /* METRICS LAYOUT */
+        .metrics-container {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .data-point {
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            min-width: 180px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .data-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 0.5rem;
+        }
+
+        .data-value {
+            font-size: 1.2rem;
+            font-family: monospace;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="spectrum-container">
+        
+        <!-- SECTION 1: Intro / Infrared -->
+        <section class="wavelength-section">
+            <div class="info-card">
+                <h2>The Invisible Warmth</h2>
+                <p>You are currently in the Infrared spectrum. We cannot see this light, but we feel it as heat. These waves are long and carry less energy.</p>
+                <div class="metrics-container">
+                    <div class="data-point">
+                        <span class="data-label">Wavelength (λ)</span>
+                        <span class="data-value">> 700 nm</span>
+                    </div>
+                    <div class="data-point">
+                        <span class="data-label">Frequency (f)</span>
+                        <span class="data-value">< 430 THz</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: Red -->
+        <section class="wavelength-section">
+            <div class="info-card">
+                <h2>Entering Visible Light</h2>
+                <p>Red light has the longest wavelength of all visible light. Because it scatters the least in our atmosphere, it penetrates dust and fog, making it ideal for traffic lights and brake lights.</p>
+                <div class="metrics-container">
+                    <div class="data-point">
+                        <span class="data-label">Wavelength (λ)</span>
+                        <span class="data-value">~ 700 - 635 nm</span>
+                    </div>
+                    <div class="data-point">
+                        <span class="data-label">Frequency (f)</span>
+                        <span class="data-value">~ 430 - 480 THz</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3: Yellow/Green -->
+        <section class="wavelength-section">
+            <div class="info-card">
+                <h2>The Solar Peak</h2>
+                <p>Our sun emits light across the entire spectrum, but its energy peaks right here. Human eyes have evolved to be highly sensitive to these exact wavelengths, which is why high-visibility vests use these colors.</p>
+                <div class="metrics-container">
+                    <div class="data-point">
+                        <span class="data-label">Wavelength (λ)</span>
+                        <span class="data-value">~ 580 - 540 nm</span>
+                    </div>
+                    <div class="data-point">
+                        <span class="data-label">Frequency (f)</span>
+                        <span class="data-value">~ 517 - 555 THz</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 4: Blue -->
+        <section class="wavelength-section">
+            <div class="info-card">
+                <h2>High Energy Scattering</h2>
+                <p>Blue light waves are shorter and vibrate faster. When sunlight hits Earth's atmosphere, molecules scatter these highly energetic waves in every direction, painting the sky blue.</p>
+                <div class="metrics-container">
+                    <div class="data-point">
+                        <span class="data-label">Wavelength (λ)</span>
+                        <span class="data-value">~ 490 - 450 nm</span>
+                    </div>
+                    <div class="data-point">
+                        <span class="data-label">Frequency (f)</span>
+                        <span class="data-value">~ 610 - 665 THz</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 5: Ultraviolet / Outro -->
+        <section class="wavelength-section">
+            <div class="info-card">
+                <h2>Beyond Sight</h2>
+                <p>We are exiting the visible spectrum into Ultraviolet. The frequency is now so high that these waves carry enough energy to damage DNA, which is why we wear sunscreen.</p>
+                <div class="metrics-container">
+                    <div class="data-point">
+                        <span class="data-label">Wavelength (λ)</span>
+                        <span class="data-value">< 400 nm</span>
+                    </div>
+                    <div class="data-point">
+                        <span class="data-label">Frequency (f)</span>
+                        <span class="data-value">> 750 THz</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- JAVASCRIPT FOR SCROLL FADE-IN -->
+    <script>
+        const observerOptions = {
+            root: null, 
+            rootMargin: '0px',
+            threshold: 0.5 
+        };
+
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                } else {
+                    entry.target.classList.remove('visible');
+                }
+            });
+        }, observerOptions);
+
+        const cards = document.querySelectorAll('.info-card');
+        cards.forEach(card => {
+            observer.observe(card);
+        });
+    </script>
+
+</body>
+</html>

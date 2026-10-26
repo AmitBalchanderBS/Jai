@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Grid Explorer</title>
+    <style>
+        body {
+            background-color: #0d0d1a;
+            color: #e0e0ff;
+            font-family: 'Courier New', Courier, monospace;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        #game-container {
+            max-width: 700px;
+            margin: auto;
+            background: #111122;
+            border: 3px solid #8a2be2; /* Deep purple like the drawing */
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 25px rgba(138, 43, 226, 0.5);
+        }
+        h1 { color: #00ffff; text-shadow: 0 0 10px #00ffff; }
+        input[type="text"] {
+            padding: 12px;
+            font-size: 18px;
+            border: 2px solid #00ffff;
+            background: #000;
+            color: #00ffff;
+            border-radius: 5px;
+            text-align: center;
+            width: 80%;
+            max-width: 300px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #5a2e98;
+            color: white;
+            border: 2px solid #8a2be2;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00ffff;
+            color: black;
+            box-shadow: 0 0 15px #00ffff;
+        }
+        .hidden { display: none !important; }
+        
+        #stats-board {
+            display: flex;
+            justify-content: space-around;
+            background: #05050a;
+            border: 1px solid #00ffff;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ffff;
+        }
+        
+        /* The Graph Paper Grid */
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+            background: #f8f8ff; /* Notebook paper color */
+            padding: 5px;
+            border: 2px solid #ccc;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 400px;
+            background-image: 
+                linear-gradient(#e5e5e5 1px, transparent 1px),
+                linear-gradient(90deg, #e5e5e5 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .tile {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid #b0c4de;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            transition: 0.2s;
+        }
+        .tile:hover { background: rgba(138, 43, 226, 0.3); }
+        .tile.revealed-empty { background: rgba(255, 255, 255, 0.1); cursor: default; }
+        .tile.revealed-fact { background: #8a2be2; color: white; cursor: default; box-shadow: inset 0 0 10px #000; }
+        .tile.revealed-hazard { background: #ff3333; color: white; cursor: default; box-shadow: inset 0 0 10px #000; }
+        .tile.revealed-goal { background: #00ffff; color: black; cursor: default; box-shadow: inset 0 0 10px #000; }
+
+        /* Trivia Modal */
+        #trivia-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #111122;
+            border: 3px solid #00ffff;
+            padding: 25px;
+            width: 85%;
+            max-width: 500px;
+            z-index: 100;
+            box-shadow: 0 0 40px #00ffff;
+        }
+        .options-container button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            background: #2a2a4a;
+            border: 1px solid #8a2be2;
+        }
+        .options-container button:hover { background: #8a2be2; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <h1>Galactic Grid Explorer</h1>
+        <p>Welcome, Cartographer. We have received a transmission of a strange, pixelated spiral galaxy drawn on graph paper. We need you to map its grid.</p>
+        <p>Explore the grid to find the Warp Gate to the next sector. Beware of cosmic hazards, and analyze scientific anomalies for points!</p>
+        <input type="text" id="player-name" placeholder="PLEASE ENTER YOUR NAME" autocomplete="off">
+        <br>
+        <button onclick="startGame()">Commence Mission</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden">
+        <div id="stats-board">
+            <div>Explorer: <span id="display-name"></span></div>
+            <div>Level: <span id="display-level"></span>/3</div>
+            <div>Score: <span id="display-score">0</span></div>
+        </div>
+        
+        <h2 id="level-title" style="color: #8a2be2;"></h2>
+        <p id="level-desc"></p>
+        
+        <div id="grid"></div>
+    </div>
+
+    <!-- End Screen -->
+    <div id="end-screen" class="hidden">
+        <h1>Mission Complete</h1>
+        <p id="final-message"></p>
+        <h2>Final Score: <span id="final-score"></span></h2>
+        <button onclick="location.reload()">Map Another Galaxy</button>
+    </div>
+</div>
+
+<!-- Trivia Modal -->
+<div id="trivia-modal" class="hidden">
+    <h3 style="color: #00ffff;">Deep Space Anomaly Detected!</h3>
+    <p id="trivia-fact" style="font-size: 16px; line-height: 1.5; text-align: left;"></p>
+    <p id="trivia-question" style="font-weight: bold; margin-top: 15px;"></p>
+    <div class="options-container" id="trivia-options"></div>
+</div>
+
+<script>
+    let playerName = "";
+    let score = 0;
+    let currentLevel = 1;
+    let gridLocked = false;
+
+    // Science Data for the 3 Levels
+    const levelsData = [
+        {
+            title: "Sector 1: The Outer Arms",
+            desc: "Click tiles on the graph paper to find the Warp Gate (🌀). Avoid solar flares (💥). Click anomalies (⭐) for bonus points.",
+            fact: "Did you know? The spiral arms in a galaxy aren't fixed lanes of stars. They are actually 'Density Waves'—like cosmic traffic jams! Stars move in and out of these arms as they orbit the center.",
+            question: "What causes the spiral arms of a galaxy to form?",
+            options: ["Density Waves (Cosmic traffic jams)", "Giant magnetic strings", "Alien megastructures", "Dark Matter ropes"],
+            answer: 0
+        },
+        {
+            title: "Sector 2: The Dark Matter Halo",
+            desc: "You are deeper in the grid. The galaxy is spinning too fast for gravity alone to hold it together. Something invisible is here.",
+            fact: "Did you know? Around 85% of the matter in the universe is invisible 'Dark Matter.' We can't see it, but we can measure its gravitational pull. Without it, spinning galaxies would fly apart!",
+            question: "How do scientists know Dark Matter exists if we can't see it?",
+            options: ["By its temperature", "By listening to space radio waves", "Through its gravitational effect on visible matter", "By analyzing pixelated photos"],
+            answer: 2
+        },
+        {
+            title: "Sector 3: The Galactic Core",
+            desc: "Warning: Extreme gravity detected. You are approaching the center of the grid. Find the final Warp Gate to escape.",
+            fact: "Did you know? At the center of our galaxy lies Sagittarius A*, a Supermassive Black Hole. Because its gravity is so intense, it warps the fabric of space and time. If you flew near it, time would literally pass slower for you than for people on Earth (Time Dilation).",
+            question: "What happens to time as you get closer to a Supermassive Black Hole?",
+            options: ["It stops completely", "It speeds up", "It goes backwards", "It slows down (Time Dilation)"],
+            answer: 3
+        }
+    ];
+
+    function startGame() {
+        const nameInput = document.getElementById("player-name").value;
+        if (nameInput.trim() === "") {
+            alert("Cartographer, please enter your name to proceed.");
+            return;
+        }
+        playerName = nameInput.toUpperCase();
+        document.getElementById("display-name").innerText = playerName;
+        
+        document.getElementById("start-screen").classList.add("hidden");
+        document.getElementById("game-screen").classList.remove("hidden");
+        
+        loadLevel();
+    }
+
+    function loadLevel() {
+        if (currentLevel > 3) {
+            endGame();
+            return;
+        }
+        
+        const levelInfo = levelsData[currentLevel - 1];
+        document.getElementById("display-level").innerText = currentLevel;
+        document.getElementById("level-title").innerText = levelInfo.title;
+        document.getElementById("level-desc").innerText = levelInfo.desc;
+        
+        generateGrid();
+    }
+
+    function generateGrid() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        gridLocked = false;
+        
+        let tiles = [];
+        // 25 tiles total (5x5 grid)
+        // 1 Goal, 2 Facts, 3 Hazards, 19 Empty
+        tiles.push({ type: 'goal', icon: '🌀' });
+        tiles.push({ type: 'fact', icon: '⭐' });
+        tiles.push({ type: 'fact', icon: '⭐' });
+        tiles.push({ type: 'hazard', icon: '💥' });
+        tiles.push({ type: 'hazard', icon: '💥' });
+        tiles.push({ type: 'hazard', icon: '💥' });
+        
+        for (let i = 0; i < 19; i++) {
+            tiles.push({ type: 'empty', icon: '' });
+        }
+        
+        // Shuffle array to randomize grid
+        tiles = tiles.sort(() => Math.random() - 0.5);
+
+        tiles.forEach(tileData => {
+            const tile = document.createElement("div");
+            tile.classList.add("tile");
+            tile.onclick = () => handleTileClick(tile, tileData);
+            grid.appendChild(tile);
+        });
+    }
+
+    function handleTileClick(tile, tileData) {
+        if (gridLocked || tile.classList.contains("revealed-empty") || 
+            tile.classList.contains("revealed-fact") || 
+            tile.classList.contains("revealed-hazard") || 
+            tile.classList.contains("revealed-goal")) {
+            return;
+        }
+
+        tile.innerText = tileData.icon;
+
+        if (tileData.type === 'empty') {
+            tile.classList.add("revealed-empty");
+            updateScore(10); // small points for exploring
+        } 
+        else if (tileData.type === 'hazard') {
+            tile.classList.add("revealed-hazard");
+            updateScore(-50); // lose points
+            alert("WARNING: Hazard encountered! You lost 50 points.");
+        } 
+        else if (tileData.type === 'fact') {
+            tile.classList.add("revealed-fact");
+            showTrivia();
+        } 
+        else if (tileData.type === 'goal') {
+            tile.classList.add("revealed-goal");
+            gridLocked = true;
+            setTimeout(() => {
+                alert("Warp Gate Found! Jumping to next sector...");
+                currentLevel++;
+                loadLevel();
+            }, 500);
+        }
+    }
+
+    function showTrivia() {
+        gridLocked = true;
+        const levelInfo = levelsData[currentLevel - 1];
+        
+        document.getElementById("trivia-fact").innerText = levelInfo.fact;
+        document.getElementById("trivia-question").innerText = levelInfo.question;
+        
+        const optionsDiv = document.getElementById("trivia-options");
+        optionsDiv.innerHTML = "";
+        
+        levelInfo.options.forEach((opt, index) => {
+            const btn = document.createElement("button");
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(index, levelInfo.answer);
+            optionsDiv.appendChild(btn);
+        });
+        
+        document.getElementById("trivia-modal").classList.remove("hidden");
+    }
+
+    function checkAnswer(selectedIndex, correctIndex) {
+        if (selectedIndex === correctIndex) {
+            alert("Correct! Data archived successfully. +100 Points.");
+            updateScore(100);
+        } else {
+            alert("Incorrect data analysis. You missed the bonus points.");
+        }
+        document.getElementById("trivia-modal").classList.add("hidden");
+        gridLocked = false;
+    }
+
+    function updateScore(points) {
+        score += points;
+        document.getElementById("display-score").innerText = score;
+    }
+
+    function endGame() {
+        document.getElementById("game-screen").classList.add("hidden");
+        document.getElementById("end-screen").classList.remove("hidden");
+        document.getElementById("final-score").innerText = score;
+        
+        let msg = "";
+        if (score > 400) msg = "Incredible mapping skills, " + playerName + "! You are a true master of astrophysics.";
+        else if (score > 200) msg = "Great job, " + playerName + ". You survived the cosmic wilderness.";
+        else msg = "You made it out alive, " + playerName + ", but the galaxy remains mostly a mystery.";
+        
+        document.getElementById("final-message").innerText = msg;
+    }
+</script>
+</body>
+</html>

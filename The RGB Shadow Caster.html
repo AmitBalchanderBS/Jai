@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The RGB Shadow Caster</title>
+    <style>
+        /* CSS RESET & BASE STYLES */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            overflow: hidden; /* Prevent scrolling while dragging */
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* UI OVERLAY */
+        .ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 350px;
+            pointer-events: none; /* Let clicks pass through if lights are underneath */
+        }
+
+        .ui-panel h1 {
+            font-size: 1.4rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .ui-panel p {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .ui-panel .highlight {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        /* THE INTERACTIVE CANVAS */
+        .canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            isolation: isolate; /* Creates a new stacking context for blend modes */
+        }
+
+        /* THE SPOTLIGHTS */
+        .light {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            cursor: grab;
+            /* Screen mode combines RGB values additively (creates white when all 3 overlap) */
+            mix-blend-mode: screen; 
+            touch-action: none; /* Prevents default touch actions like zooming */
+        }
+
+        .light:active {
+            cursor: grabbing;
+        }
+
+        /* Radial gradients to simulate soft light falloff */
+        .light.red {
+            background: radial-gradient(circle, #ff0000 0%, rgba(255,0,0,0) 65%);
+        }
+        .light.green {
+            background: radial-gradient(circle, #00ff00 0%, rgba(0,255,0,0) 65%);
+        }
+        .light.blue {
+            background: radial-gradient(circle, #0000ff 0%, rgba(0,0,255,0) 65%);
+        }
+
+        /* THE CENTRAL OBJECT */
+        .center-object {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80px;
+            height: 80px;
+            background: #111; /* Dark solid object */
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            pointer-events: none;
+            box-shadow: inset -5px -5px 15px rgba(255,255,255,0.2); /* Slight 3D edge */
+        }
+
+        /* THE SHADOWS */
+        /* 
+           Using multiply blend mode for shadows mathematically subtracts 
+           the specific color from the lit background, yielding perfect secondary colors.
+        */
+        .shadow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            mix-blend-mode: multiply;
+            filter: blur(15px); /* Soft shadow edge */
+            pointer-events: none;
+            z-index: 40;
+            transition: transform 0.05s linear; /* Smooth micro-stutters */
+        }
+
+        /* Cyan shadow blocks Red light */
+        .shadow.cyan { background: #00ffff; }
+        /* Magenta shadow blocks Green light */
+        .shadow.magenta { background: #ff00ff; }
+        /* Yellow shadow blocks Blue light */
+        .shadow.yellow { background: #ffff00; }
+
+    </style>
+</head>
+<body>
+
+    <!-- EDUCATIONAL OVERLAY -->
+    <div class="ui-panel">
+        <h1>Additive Color Mixing</h1>
+        <p>Drag the Red, Green, and Blue spotlights around the center object.</p>
+        <br>
+        <p>Notice how overlapping light creates <span class="highlight">White</span>, but the shadows split into <span class="highlight">Cyan, Magenta, and Yellow</span>.</p>
+        <br>
+        <p>Because the object blocks the Red light, only Green and Blue hit that area, creating a Cyan shadow.</p>
+    </div>
+
+    <!-- INTERACTIVE AREA -->
+    <div class="canvas" id="canvas">
+        
+        <!-- Lights -->
+        <div class="light red" id="lightR"></div>
+        <div class="light green" id="lightG"></div>
+        <div class="light blue" id="lightB"></div>
+
+        <!-- Subtractive Shadows -->
+        <div class="shadow cyan" id="shadowR"></div>
+        <div class="shadow magenta" id="shadowG"></div>
+        <div class="shadow yellow" id="shadowB"></div>
+
+        <!-- The Object -->
+        <div class="center-object"></div>
+
+    </div>
+
+    <script>
+        // DOM Elements
+        const canvas = document.getElementById('canvas');
+        const lights = {
+            red: { 
+                el: document.getElementById('lightR'), 
+                shadow: document.getElementById('shadowR'),
+                x: 0, y: 0 
+            },
+            green: { 
+                el: document.getElementById('lightG'), 
+                shadow: document.getElementById('shadowG'),
+                x: 0, y: 0 
+            },
+            blue: { 
+                el: document.getElementById('lightB'), 
+                shadow: document.getElementById('shadowB'),
+                x: 0, y: 0 
+            }
+        };
+
+        // State Variables
+        let centerX, centerY;
+        let activeLight = null;
+        let isDragging = false;
+        
+        // The radius of the light divs (500px / 2 = 250)
+        const lightOffset = 250;
+
+        // Initialize Coordinates
+        function initLayout() {
+            const rect = canvas.getBoundingClientRect();
+            centerX = rect.width / 2;
+            centerY = rect.height / 2;
+
+            // Set initial starting positions (in a triangle around the center)
+            setPosition('red', centerX, centerY - 150);
+            setPosition('green', centerX - 150, centerY + 100);
+            setPosition('blue', centerX + 150, centerY + 100);
+        }
+
+        // Apply positions and calculate realistic shadow offsets
+        function setPosition(key, x, y) {
+            lights[key].x = x;
+            lights[key].y = y;
+            
+            // Move the actual light element
+            lights[key].el.style.left = `${x - lightOffset}px`;
+            lights[key].el.style.top = `${y - lightOffset}px`;
+
+            // Calculate distance from center object to light source
+            const dx = centerX - x;
+            const dy = centerY - y;
+
+            // Project the shadow in the opposite direction. 
+            // The multiplier (0.3) controls how far the shadow stretches away.
+            const shadowX = dx * 0.3;
+            const shadowY = dy * 0.3;
+
+            // Move the shadow element
+            lights[key].shadow.style.transform = `translate(calc(-50% + ${shadowX}px), calc(-50% + ${shadowY}px))`;
+        }
+
+        // --- DRAG & DROP LOGIC ---
+
+        function handleDragStart(e, key) {
+            activeLight = key;
+            isDragging = true;
+        }
+
+        function handleDragMove(e) {
+            if (!isDragging || !activeLight) return;
+            e.preventDefault(); // Prevent scrolling on touch
+
+            // Normalize coordinates for both mouse and touch
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            setPosition(activeLight, clientX, clientY);
+        }
+
+        function handleDragEnd() {
+            isDragging = false;
+            activeLight = null;
+        }
+
+        // Bind Events to Lights
+        Object.keys(lights).forEach(key => {
+            const el = lights[key].el;
+            
+            // Mouse Events
+            el.addEventListener('mousedown', (e) => handleDragStart(e, key));
+            
+            // Touch Events
+            el.addEventListener('touchstart', (e) => handleDragStart(e, key), { passive: false });
+        });
+
+        // Bind Move & End events to the entire window so you don't lose the drag if moving fast
+        window.addEventListener('mousemove', handleDragMove);
+        window.addEventListener('mouseup', handleDragEnd);
+        window.addEventListener('touchmove', handleDragMove, { passive: false });
+        window.addEventListener('touchend', handleDragEnd);
+
+        // Handle Window Resizing
+        window.addEventListener('resize', initLayout);
+
+        // Run on load
+        initLayout();
+
+    </script>
+</body>
+</html>

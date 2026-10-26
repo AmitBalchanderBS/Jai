@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parsec Whitefield: Zenians Lab (Sealed Grid)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+
+        body {
+            background-color: #050508; color: #fff;
+            font-family: 'Roboto Mono', monospace;
+            margin: 0; padding: 0;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            width: 800px; height: 600px;
+            background-color: #050508; position: relative;
+            border: 2px solid #333; box-shadow: 0 0 50px rgba(0, 229, 255, 0.15);
+            border-radius: 8px; overflow: hidden;
+        }
+
+        /* Canvas is 550px high to leave 50px for the HUD at the bottom */
+        canvas { display: block; }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 10, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; text-align: center; padding: 40px; box-sizing: border-box;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 { color: #00e5ff; text-transform: uppercase; margin-bottom: 5px; font-size: 28px; }
+        .danger-text { color: #ff3333; text-shadow: 0 0 15px rgba(255, 51, 51, 0.5); }
+        h2 { color: #888; font-size: 14px; margin-bottom: 30px; letter-spacing: 2px; }
+        p { font-size: 14px; line-height: 1.8; max-width: 550px; margin-bottom: 25px; color: #ccc; }
+
+        button {
+            background-color: transparent; color: #00e5ff;
+            border: 1px solid #00e5ff; font-family: 'Roboto Mono', monospace;
+            padding: 12px 30px; font-size: 14px; cursor: pointer; text-transform: uppercase;
+        }
+        button:hover { background-color: #00e5ff; color: #000; box-shadow: 0 0 20px rgba(0, 229, 255, 0.6); }
+
+        .options { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 500px; }
+        .options button { width: 100%; margin: 0; text-align: left; padding: 15px; border-color: #555; color: #fff;}
+        .options button:hover { background: #00e5ff; color: #000; border-color: #00e5ff; }
+
+        #cinematic-blocks { display: flex; gap: 20px; margin: 30px 0; }
+        .diamond-block { width: 50px; height: 50px; border: 1px solid #333; display: flex; justify-content: center; align-items: center; }
+        .diamond-filled { width: 25px; height: 25px; background-color: #00e5ff; transform: rotate(45deg); box-shadow: 0 0 20px #00e5ff; }
+
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        /* Full width HUD bar locked to the bottom */
+        #hud {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 50px;
+            color: #00e5ff; font-size: 14px; z-index: 5;
+            background: #0a0a0f; 
+            border-top: 2px solid #00e5ff; 
+            display: flex; justify-content: space-evenly; align-items: center;
+            box-shadow: 0 -5px 15px rgba(0,229,255,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="start-screen" class="overlay">
+        <h1>Operation: Zenians Lab</h1>
+        <h2>TACTICAL ESPIONAGE</h2>
+        <p>Intel is hidden beneath heavy security covers. Locate the Supply Crate to equip a <strong>HAMMER</strong> before you can smash them. Outer edges are sealed.</p>
+        <p style="color: #ff3333;"><strong>WARNING:</strong> Incorrect terminal data forces a sector reset.</p>
+        <p style="color: #666;">[ W A S D ] to Move &nbsp;|&nbsp; [ SPACE ] to Dash</p>
+        <button onclick="startGame()">Commence Mission</button>
+    </div>
+
+    <div id="gameover-screen" class="overlay hidden">
+        <h1 class="danger-text">MISSION FAILED</h1>
+        <h2>AGENT COMPROMISED</h2>
+        <p>You have been detected too many times. Security has locked down the facility.</p>
+        <button onclick="location.reload()" style="border-color: #ff3333; color: #ff3333;">Reboot Simulator</button>
+    </div>
+
+    <div id="question-screen" class="overlay hidden">
+        <h1 id="q-title">Intel Secured</h1>
+        <p id="q-text" style="text-align: left; background: rgba(0, 229, 255, 0.05); padding: 20px; border: 1px solid rgba(0, 229, 255, 0.2);"></p>
+        <div class="options" id="q-options"></div>
+    </div>
+
+    <div id="level5-screen" class="overlay hidden">
+        <h1>Zenians Lab Central Server</h1>
+        <p>Place the intel diamonds into the initiative blocks to map the facility.</p>
+        <div id="cinematic-blocks">
+            <div class="diamond-block" id="block-1"></div>
+            <div class="diamond-block" id="block-2"></div>
+            <div class="diamond-block" id="block-3"></div>
+            <div class="diamond-block" id="block-4"></div>
+        </div>
+        <p id="press-enter-msg" style="color: #00e5ff; animation: pulse 1.5s infinite;">PRESS [ENTER] TO INITIALIZE</p>
+    </div>
+
+    <div id="summary-screen" class="overlay hidden">
+        <h1>Mission Debrief</h1>
+        <div id="summary-content" style="text-align: left; font-size: 13px; height: 320px; width: 600px; overflow-y: auto; padding: 20px; border: 1px solid #333; background: #0a0a0f;"></div>
+        <button onclick="location.reload()">Reboot Simulator</button>
+    </div>
+
+    <!-- HUD moved to bottom -->
+    <div id="hud" class="hidden">
+        <div>LEVEL: <span id="hud-level" style="color:#fff;">1</span></div>
+        <div>LIVES: <span id="hud-lives" style="color:#ff3333; font-weight:bold;">3</span></div>
+        <div>TOOL: <span id="hud-tool" style="color:#ff9900; font-weight:bold;">NONE</span></div>
+        <div>INTEL: <span id="hud-diamonds" style="color:#fff;">0</span>/4</div>
+    </div>
+
+    <!-- Canvas height reduced to 550 to make room for HUD -->
+    <canvas id="gameCanvas" width="800" height="550"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let currentLevel = 1;
+    let diamondsCollected = 0;
+    let playerLives = 3;
+    let isPlaying = false;
+    let isJumping = false;
+    let jumpTimer = 0;
+    let gameTime = 0;
+    
+    // Player State
+    let hasHammer = false;
+    const player = { x: 20, y: 50, width: 26, height: 40, speed: 4 };
+
+    let currentDrones = [];
+    let currentRocks = [];
+    let currentHammerBox = null;
+
+    const keys = { w: false, a: false, s: false, d: false, space: false, enter: false };
+
+    window.addEventListener("keydown", (e) => {
+        if(e.key.toLowerCase() === 'w') keys.w = true;
+        if(e.key.toLowerCase() === 'a') keys.a = true;
+        if(e.key.toLowerCase() === 's') keys.s = true;
+        if(e.key.toLowerCase() === 'd') keys.d = true;
+        if(e.code === 'Space') keys.space = true;
+        if(e.code === 'Enter') { keys.enter = true; if (currentLevel === 5) triggerSummary(); }
+    });
+
+    window.addEventListener("keyup", (e) => {
+        if(e.key.toLowerCase() === 'w') keys.w = false;
+        if(e.key.toLowerCase() === 'a') keys.a = false;
+        if(e.key.toLowerCase() === 's') keys.s = false;
+        if(e.key.toLowerCase() === 'd') keys.d = false;
+        if(e.code === 'Space') keys.space = false;
+        if(e.code === 'Enter') keys.enter = false;
+    });
+
+    // Outer borders are fully sealed. Max Y coordinate is now 550.
+    const levelData = [
+        {
+            zone: "Sector 1: The Outskirts", bg: "#0d0d1a", wallGlow: "#8a2be2",
+            playerStart: {x: 20, y: 20}, 
+            hammerBox: {x: 740, y: 480, w: 30, h: 30, collected: false},
+            rocks: [
+                {x: 350, y: 20, w: 40, h: 40, isReal: false, broken: false}, 
+                {x: 740, y: 20, w: 40, h: 40, isReal: true, broken: false}  
+            ],
+            walls: [
+                // Walls physically touching canvas borders
+                {x: 120, y: 0, w: 60, h: 400}, 
+                {x: 120, y: 400, w: 500, h: 60}, 
+                {x: 560, y: 120, w: 60, h: 280} 
+            ],
+            drones: [
+                {x: 220, y: 50, w: 300, h: 40, dx: 0, dy: 3, min: 20, max: 320}, 
+                {x: 650, y: 150, w: 40, h: 40, dx: 0, dy: 4, min: 100, max: 480}
+            ],
+            fact: "The city runs on a massive network of Fiber Optics. These cables transmit data using pulses of light, bouncing off the inside of glass tubes.",
+            question: "How do fiber optic cables transmit data across the city?",
+            options: ["Sound waves", "Pulses of light", "Water pressure"], answer: 1
+        },
+        {
+            zone: "Sector 2: Bioluminescent Checkpoint", bg: "#05140a", wallGlow: "#00ff66",
+            playerStart: {x: 20, y: 20}, 
+            hammerBox: {x: 740, y: 20, w: 30, h: 30, collected: false},
+            rocks: [
+                {x: 20, y: 480, w: 40, h: 40, isReal: true, broken: false}, 
+                {x: 740, y: 480, w: 40, h: 40, isReal: false, broken: false}
+            ],
+            walls: [
+                // Complete horizontal blocking
+                {x: 0, y: 120, w: 680, h: 60}, 
+                {x: 120, y: 320, w: 680, h: 60},
+            ],
+            drones: [
+                {x: 0, y: 220, w: 60, h: 60, dx: 7, dy: 0, min: 0, max: 740}, 
+                {x: 740, y: 420, w: 60, h: 60, dx: -6, dy: 0, min: 0, max: 740}
+            ],
+            fact: "Forests have their own 'internet' called Mycorrhizal Networks. Fungi connect the roots of trees, allowing them to share resources.",
+            question: "What organism acts as the 'internet' connecting trees in a forest?",
+            options: ["Fungi (Mycorrhiza)", "Earthworms", "Moss"], answer: 0
+        },
+        {
+            zone: "Sector 3: Industrial Grid", bg: "#1a1005", wallGlow: "#ff6600",
+            playerStart: {x: 380, y: 20}, 
+            hammerBox: {x: 20, y: 280, w: 30, h: 30, collected: false},
+            rocks: [
+                {x: 720, y: 280, w: 40, h: 40, isReal: true, broken: false},
+                {x: 380, y: 480, w: 40, h: 40, isReal: false, broken: false}
+            ],
+            walls: [
+                // Blocks touching the edges
+                {x: 0, y: 100, w: 340, h: 60}, 
+                {x: 460, y: 100, w: 340, h: 60}, 
+                {x: 120, y: 260, w: 560, h: 60}, 
+                {x: 120, y: 420, w: 560, h: 60}
+            ],
+            drones: [
+                {x: 350, y: 160, w: 100, h: 40, dx: 0, dy: 5, min: 160, max: 480}, 
+                {x: 0, y: 340, w: 120, h: 40, dx: 0, dy: 4, min: 160, max: 480}, 
+                {x: 680, y: 340, w: 120, h: 40, dx: 0, dy: -4, min: 160, max: 480} 
+            ],
+            fact: "Semiconductors used in robotics are made from Silicon, extracted from common sand (Silicon Dioxide) through extreme heat processes.",
+            question: "What common material is refined to make computer chips?",
+            options: ["Cactus sap", "Sand (Silicon)", "Dried clay"], answer: 1
+        },
+        {
+            zone: "Sector 4: Data Core Approach", bg: "#0f1626", wallGlow: "#00e5ff",
+            playerStart: {x: 740, y: 480}, 
+            hammerBox: {x: 20, y: 480, w: 30, h: 30, collected: false},
+            rocks: [
+                {x: 20, y: 20, w: 40, h: 40, isReal: true, broken: false},
+                {x: 740, y: 20, w: 40, h: 40, isReal: false, broken: false},
+                {x: 380, y: 20, w: 40, h: 40, isReal: false, broken: false}
+            ],
+            walls: [
+                // Strict zig-zag connected to walls perfectly
+                {x: 0, y: 100, w: 680, h: 60},
+                {x: 120, y: 240, w: 680, h: 60},
+                {x: 0, y: 380, w: 680, h: 60},
+                {x: 380, y: 160, w: 40, h: 80},
+                {x: 380, y: 300, w: 40, h: 80}
+            ],
+            drones: [
+                {x: 120, y: 180, w: 60, h: 40, dx: 8, dy: 0, min: 120, max: 740}, 
+                {x: 0, y: 320, w: 60, h: 40, dx: 9, dy: 0, min: 0, max: 680}, 
+                {x: 120, y: 460, w: 60, h: 40, dx: 7, dy: 0, min: 120, max: 740} 
+            ],
+            fact: "To manage traffic and logistics, the city uses Machine Learning algorithms. The AI analyzes millions of data points to predict routes.",
+            question: "How does the smart city predict the best traffic routes?",
+            options: ["Guessing", "Machine Learning AI", "Paper maps"], answer: 1
+        }
+    ];
+
+    function startGame() {
+        document.getElementById("start-screen").classList.add("hidden");
+        document.getElementById("hud").classList.remove("hidden");
+        playerLives = 3;
+        loadLevel();
+    }
+
+    function loadLevel() {
+        if (currentLevel === 5) { triggerLevel5(); return; }
+
+        const lvl = levelData[currentLevel - 1];
+        player.x = lvl.playerStart.x; player.y = lvl.playerStart.y;
+        hasHammer = false;
+        
+        currentDrones = JSON.parse(JSON.stringify(lvl.drones));
+        currentRocks = JSON.parse(JSON.stringify(lvl.rocks));
+        currentHammerBox = JSON.parse(JSON.stringify(lvl.hammerBox));
+        
+        document.getElementById("hud-level").innerText = currentLevel;
+        document.getElementById("hud-lives").innerText = playerLives;
+        document.getElementById("hud-tool").innerText = "NONE";
+        document.getElementById("hud-tool").style.color = "#ff3333";
+        document.getElementById("hud-diamonds").innerText = diamondsCollected;
+
+        isPlaying = true;
+        gameLoop();
+    }
+
+    function checkCollision(r1, r2) {
+        return (r1.x < r2.x + r2.w && r1.x + r1.width > r2.x &&
+                r1.y < r2.y + r2.h && r1.y + r1.height > r2.y);
+    }
+
+    function triggerGameOver() {
+        isPlaying = false;
+        document.getElementById("hud").classList.add("hidden");
+        document.getElementById("gameover-screen").classList.remove("hidden");
+    }
+
+    function resetToStart() {
+        playerLives--;
+        document.getElementById("hud-lives").innerText = playerLives;
+        
+        if (playerLives <= 0) {
+            triggerGameOver();
+            return;
+        }
+
+        const lvl = levelData[currentLevel - 1];
+        player.x = lvl.playerStart.x; player.y = lvl.playerStart.y;
+        
+        document.getElementById("game-container").style.boxShadow = "inset 0 0 150px rgba(255,0,0,1)";
+        setTimeout(() => { document.getElementById("game-container").style.boxShadow = "0 0 50px rgba(0, 229, 255, 0.15)"; }, 300);
+    }
+
+    function gameLoop() {
+        if (!isPlaying) return;
+        gameTime += 0.05; 
+
+        if (keys.space && !isJumping) { isJumping = true; jumpTimer = 10; player.speed = 8; }
+        if (isJumping) {
+            jumpTimer--;
+            if (jumpTimer <= 0) { isJumping = false; player.speed = 4; }
+        }
+
+        let nextX = player.x; let nextY = player.y;
+        if (keys.w) nextY -= player.speed;
+        if (keys.s) nextY += player.speed;
+        if (keys.a) nextX -= player.speed;
+        if (keys.d) nextX += player.speed;
+
+        if (nextX < 0) nextX = 0; if (nextX > canvas.width - player.width) nextX = canvas.width - player.width;
+        if (nextY < 0) nextY = 0; if (nextY > canvas.height - player.height) nextY = canvas.height - player.height;
+
+        const lvl = levelData[currentLevel - 1];
+        let hitWall = false;
+        let playerNextRect = {x: nextX, y: nextY, width: player.width, height: player.height};
+        
+        if (!isJumping) { 
+            for (let wall of lvl.walls) {
+                if (checkCollision(playerNextRect, wall)) { hitWall = true; break; }
+            }
+            for (let rock of currentRocks) {
+                if (!rock.broken && checkCollision(playerNextRect, rock)) {
+                    if (hasHammer) { rock.broken = true; hitWall = false; } 
+                    else { hitWall = true; }
+                }
+            }
+        }
+
+        if (!hitWall) { player.x = nextX; player.y = nextY; }
+
+        for (let drone of currentDrones) {
+            drone.x += drone.dx; drone.y += drone.dy;
+            if (drone.dx !== 0 && (drone.x < drone.min || drone.x > drone.max)) drone.dx *= -1;
+            if (drone.dy !== 0 && (drone.y < drone.min || drone.y > drone.max)) drone.dy *= -1;
+            if (checkCollision(player, drone)) resetToStart();
+        }
+
+        if (!currentHammerBox.collected && checkCollision(player, currentHammerBox)) {
+            currentHammerBox.collected = true; hasHammer = true;
+            document.getElementById("hud-tool").innerText = "HAMMER";
+            document.getElementById("hud-tool").style.color = "#ff9900";
+        }
+
+        for (let rock of currentRocks) {
+            if (rock.broken && rock.isReal) {
+                let diamondRect = {x: rock.x, y: rock.y, w: rock.w, h: rock.h};
+                if (checkCollision(player, diamondRect)) { isPlaying = false; showQuestion(); return; }
+            }
+        }
+
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function drawGame() {
+        const lvl = levelData[currentLevel - 1];
+
+        ctx.fillStyle = lvl.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.lineWidth = 1;
+        for(let i=0; i<canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
+        for(let i=0; i<canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
+
+        for (let wall of lvl.walls) {
+            ctx.shadowBlur = 10; ctx.shadowColor = lvl.wallGlow; ctx.fillStyle = "#111";
+            ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+            ctx.shadowBlur = 0; ctx.strokeStyle = lvl.wallGlow; ctx.lineWidth = 2;
+            ctx.strokeRect(wall.x+1, wall.y+1, wall.w-2, wall.h-2);
+        }
+
+        if (!currentHammerBox.collected) {
+            ctx.fillStyle = "#ff9900"; ctx.shadowBlur = 15; ctx.shadowColor = "#ff9900";
+            ctx.fillRect(currentHammerBox.x, currentHammerBox.y, currentHammerBox.w, currentHammerBox.h);
+            ctx.fillStyle = "#222"; ctx.shadowBlur = 0;
+            ctx.fillRect(currentHammerBox.x+4, currentHammerBox.y+4, currentHammerBox.w-8, currentHammerBox.h-8);
+        }
+
+        for (let rock of currentRocks) {
+            if (!rock.broken) {
+                ctx.fillStyle = "#0a0a0f"; ctx.shadowBlur = 0;
+                ctx.fillRect(rock.x, rock.y, rock.w, rock.h);
+                ctx.strokeStyle = "#444"; ctx.lineWidth = 3;
+                ctx.strokeRect(rock.x, rock.y, rock.w, rock.h);
+                ctx.beginPath(); ctx.moveTo(rock.x, rock.y); ctx.lineTo(rock.x+rock.w, rock.y+rock.h); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(rock.x+rock.w, rock.y); ctx.lineTo(rock.x, rock.y+rock.h); ctx.stroke();
+            } else {
+                if (rock.isReal) {
+                    let bobbing = Math.sin(gameTime * 3) * 4; 
+                    ctx.save();
+                    ctx.translate(rock.x + rock.w/2, rock.y + rock.h/2 + bobbing);
+                    ctx.rotate(gameTime * 0.5); 
+                    ctx.fillStyle = "#00e5ff"; ctx.shadowBlur = 15; ctx.shadowColor = "#00e5ff";
+                    ctx.fillRect(-10, -10, 20, 20);
+                    ctx.fillStyle = "#fff"; ctx.shadowBlur = 0; ctx.fillRect(-5, -5, 10, 10);
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = "#333";
+                    ctx.fillRect(rock.x+5, rock.y+20, 10, 10);
+                    ctx.fillRect(rock.x+20, rock.y+15, 8, 8);
+                }
+            }
+        }
+
+        for (let drone of currentDrones) {
+            ctx.fillStyle = "#ff0000"; ctx.shadowBlur = 15; ctx.shadowColor = "#ff0000";
+            ctx.fillRect(drone.x, drone.y, drone.w, drone.h);
+            ctx.fillStyle = "#ffaaaa"; ctx.shadowBlur = 0;
+            ctx.fillRect(drone.x+2, drone.y+2, drone.w-4, drone.h-4);
+        }
+
+        let isMoving = keys.w || keys.a || keys.s || keys.d;
+        let anim = isMoving && !isJumping ? Math.sin(gameTime * 15) * 4 : 0; 
+        
+        let px = player.x;
+        let py = player.y;
+
+        if (isJumping) { ctx.shadowBlur = 20; ctx.shadowColor = "#00e5ff"; }
+
+        ctx.fillStyle = "#0a0a0f"; 
+        ctx.fillRect(px + 6, py + 14, 14, 14);
+        ctx.fillStyle = "#222"; 
+        ctx.fillRect(px + 8, py + 16, 10, 10);
+
+        ctx.fillStyle = "#1a1a24";
+        ctx.fillRect(px, py + 14 + anim, 5, 12); 
+        ctx.fillRect(px + 21, py + 14 - anim, 5, 12); 
+        
+        ctx.fillStyle = "#050508";
+        ctx.strokeStyle = "#333"; ctx.lineWidth = 1;
+        ctx.fillRect(px + 6, py + 28 - anim, 6, 12); 
+        ctx.strokeRect(px + 6, py + 28 - anim, 6, 12); 
+        ctx.fillRect(px + 14, py + 28 + anim, 6, 12); 
+        ctx.strokeRect(px + 14, py + 28 + anim, 6, 12);
+
+        ctx.fillStyle = "#1a1a24"; 
+        ctx.fillRect(px + 6, py, 14, 14);
+        ctx.fillStyle = "#00e5ff"; 
+        ctx.shadowBlur = 10; ctx.shadowColor = "#00e5ff";
+        ctx.fillRect(px + 6, py + 4, 14, 4);
+        
+        ctx.shadowBlur = 0; 
+    }
+
+    function showQuestion() {
+        const lvl = levelData[currentLevel - 1];
+        const ui = document.getElementById("question-screen");
+        document.getElementById("q-text").innerHTML = `<strong>DATA ARCHIVE:</strong><br>${lvl.fact}<br><br><span style="color:#00e5ff"><strong>SECURITY CLEARANCE REQUIRED:</strong></span><br>${lvl.question}`;
+        
+        const optionsDiv = document.getElementById("q-options");
+        optionsDiv.innerHTML = "";
+        
+        lvl.options.forEach((opt, index) => {
+            const btn = document.createElement("button");
+            btn.innerText = opt;
+            btn.onclick = () => {
+                if (index === lvl.answer) {
+                    diamondsCollected++; currentLevel++;
+                    ui.classList.add("hidden"); loadLevel();
+                } else {
+                    alert("ACCESS DENIED. Incorrect data. Security protocols triggered. Routing to previous sector...");
+                    if (currentLevel > 1) {
+                        currentLevel--;
+                        diamondsCollected--;
+                    }
+                    ui.classList.add("hidden");
+                    loadLevel();
+                }
+            };
+            optionsDiv.appendChild(btn);
+        });
+        ui.classList.remove("hidden");
+    }
+
+    function triggerLevel5() {
+        document.getElementById("hud").classList.add("hidden");
+        document.getElementById("level5-screen").classList.remove("hidden");
+        for(let i=1; i<=4; i++) {
+            setTimeout(() => { document.getElementById(`block-${i}`).innerHTML = '<div class="diamond-filled"></div>'; }, i * 600);
+        }
+    }
+
+    function triggerSummary() {
+        document.getElementById("level5-screen").classList.add("hidden");
+        const summary = document.getElementById("summary-screen");
+        const content = document.getElementById("summary-content");
+        
+        let html = "<h3 style='color:#00e5ff; margin-top:0;'>MISSION LOG DECRYPTED</h3><hr style='border-color:#333; margin-bottom:20px;'>";
+        levelData.forEach((lvl, i) => {
+            html += `<p style="margin-bottom: 15px;"><strong style="color:#fff;">SECTION 0${i+1}: ${lvl.zone.toUpperCase()}</strong><br><span style="color:#888;">Recovered Intel:</span> ${lvl.fact}</p>`;
+        });
+        html += `<hr style='border-color:#333; margin-top:20px;'><p style="color:#00e5ff; font-size:14px;"><strong>SYSTEM OVERRIDE SUCCESSFUL:</strong> All data structures loaded.</p>`;
+        
+        content.innerHTML = html;
+        summary.classList.remove("hidden");
+    }
+</script>
+</body>
+</html>

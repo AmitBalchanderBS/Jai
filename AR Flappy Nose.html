@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Flappy Nose - Arcade Edition</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #1a1a2e;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #loading {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            color: #f39c12;
+            font-weight: bold;
+            height: 25px;
+        }
+
+        .game-wrapper {
+            display: flex;
+            gap: 20px;
+            background: #16213e;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+            position: relative;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+        }
+
+        canvas {
+            border: 4px solid #0f3460;
+            border-radius: 12px;
+            background-color: #000;
+        }
+
+        /* --- Overlays (Start Screen & Game Over) --- */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 52, 96, 0.9);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .overlay h1 {
+            font-size: 3rem;
+            margin: 0 0 20px 0;
+            color: #f1c40f;
+            text-shadow: 2px 2px 0 #d35400;
+        }
+
+        .overlay input {
+            padding: 15px;
+            font-size: 1.5rem;
+            border-radius: 8px;
+            border: 2px solid #3498db;
+            text-align: center;
+            margin-bottom: 20px;
+            width: 70%;
+            background: #1a1a2e;
+            color: white;
+            outline: none;
+        }
+
+        .overlay input:focus {
+            border-color: #2ecc71;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        button {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background-color: #2ecc71;
+            transform: translateY(-2px);
+        }
+        
+        .btn-alt {
+            background-color: #e67e22;
+        }
+        .btn-alt:hover {
+            background-color: #d35400;
+        }
+
+        /* --- Sidebar & Leaderboard --- */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            width: 220px;
+            gap: 15px;
+        }
+
+        .score-box {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-align: center;
+            border: 2px solid #2980b9;
+        }
+
+        .score-box span {
+            display: block;
+            font-size: 1.8rem;
+            color: #f1c40f;
+            margin-top: 5px;
+        }
+
+        .leaderboard {
+            background: #0f3460;
+            border: 2px solid #8e44ad;
+            border-radius: 8px;
+            padding: 10px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .leaderboard h3 {
+            margin: 0 0 10px 0;
+            text-align: center;
+            color: #9b59b6;
+            border-bottom: 2px solid #8e44ad;
+            padding-bottom: 5px;
+        }
+
+        .leaderboard-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            max-height: 250px;
+        }
+
+        .leaderboard-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 1rem;
+        }
+        
+        .leaderboard-list li:nth-child(1) { color: #f1c40f; font-weight: bold; } /* 1st Gold */
+        .leaderboard-list li:nth-child(2) { color: #bdc3c7; font-weight: bold; } /* 2nd Silver */
+        .leaderboard-list li:nth-child(3) { color: #cd7f32; font-weight: bold; } /* 3rd Bronze */
+
+        video { display: none; }
+    </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="loading">Initializing Camera & AI... Please wait.</div>
+    
+    <audio id="bgMusic" loop preload="auto">
+        <source src="https://opengameart.org/sites/default/files/platformer_level03.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="game-wrapper">
+        <div class="canvas-container">
+            <video id="video" width="640" height="480" autoplay playsinline></video>
+            <canvas id="gameCanvas" width="640" height="480"></canvas>
+            
+            <div id="startScreen" class="overlay">
+                <h1>FLAPPY NOSE</h1>
+                <input type="text" id="playerName" placeholder="Enter your name to play" maxlength="12" autocomplete="off">
+                <button id="startBtn">Start Game</button>
+            </div>
+
+            <div id="gameOverScreen" class="overlay hidden">
+                <h1>CRASHED!</h1>
+                <h2 id="finalScoreDisplay" style="color: white;">Score: 0</h2>
+                <div class="btn-group">
+                    <button id="playAgainBtn">Play Again</button>
+                    <button id="newPlayerBtn" class="btn-alt">New Player</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="score-box">
+                Player: <span id="currentPlayerDisplay" style="font-size: 1.2rem; color: white;">---</span>
+            </div>
+            <div class="score-box">
+                Level <span id="levelVal">1</span>
+            </div>
+            <div class="score-box">
+                Score <span id="scoreVal">0</span>
+            </div>
+            
+            <div class="leaderboard">
+                <h3>Top Players</h3>
+                <ul class="leaderboard-list" id="leaderboardList">
+                    </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('gameCanvas');
+        const ctx = canvasElement.getContext('2d');
+        const loadingText = document.getElementById('loading');
+        
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const playerNameInput = document.getElementById('playerName');
+        const bgMusic = document.getElementById('bgMusic');
+
+        // Game State
+        let currentPlayer = "";
+        let birdX = 320, birdY = 240, targetBirdX = 320, targetBirdY = 240;
+        const birdRadius = 18;
+        let pipes = [];
+        let score = 0, currentLevel = 1, baseSpeed = 4, pipeSpeed = baseSpeed;
+        let gameRunning = false;
+        let frameCount = 0;
+
+        // Leaderboard System
+        let leaderboard = JSON.parse(localStorage.getItem("flappyNoseLeaderboard")) || [];
+        
+        function updateLeaderboardUI() {
+            const list = document.getElementById('leaderboardList');
+            list.innerHTML = "";
+            // Sort highest to lowest and take top 8
+            leaderboard.sort((a, b) => b.score - a.score);
+            const topPlayers = leaderboard.slice(0, 8);
+            
+            if (topPlayers.length === 0) {
+                list.innerHTML = "<li style='justify-content:center; color:#7f8c8d;'>No scores yet!</li>";
+            }
+            
+            topPlayers.forEach((player, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>#${index + 1} ${player.name}</span> <span>${player.score}</span>`;
+                list.appendChild(li);
+            });
+        }
+        updateLeaderboardUI(); // Init on load
+
+        function saveScore() {
+            if (score > 0) {
+                // Check if player exists to update their highest score, or just add new entry
+                const existing = leaderboard.find(p => p.name === currentPlayer);
+                if (existing) {
+                    if (score > existing.score) existing.score = score;
+                } else {
+                    leaderboard.push({ name: currentPlayer, score: score });
+                }
+                localStorage.setItem("flappyNoseLeaderboard", JSON.stringify(leaderboard));
+                updateLeaderboardUI();
+            }
+        }
+
+        // Initialize Face Mesh
+        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+
+        faceMesh.onResults((results) => {
+            loadingText.innerText = "Camera Active! Ready to play.";
+            loadingText.style.color = "#2ecc71";
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const nose = results.multiFaceLandmarks[0][4]; 
+                targetBirdX = canvasElement.width - (nose.x * canvasElement.width);
+                targetBirdY = nose.y * canvasElement.height;
+            }
+        });
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await faceMesh.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+        camera.start();
+
+        // --- GRAPHICS --- //
+        function drawBird(x, y, r) {
+            // Body
+            let grad = ctx.createRadialGradient(x-5, y-5, 2, x, y, r);
+            grad.addColorStop(0, "#ff6b6b"); grad.addColorStop(1, "#c0392b");
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+            // Belly
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.beginPath(); ctx.arc(x, y + 2, r - 3, 0.1, Math.PI - 0.1); ctx.fill();
+
+            // Eye & Pupil
+            ctx.fillStyle = "white";
+            ctx.beginPath(); ctx.arc(x + 7, y - 6, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = "black";
+            ctx.beginPath(); ctx.arc(x + 10, y - 6, 3, 0, Math.PI*2); ctx.fill();
+
+            // Beak
+            ctx.fillStyle = "#f39c12";
+            ctx.beginPath(); ctx.moveTo(x + 12, y + 2); ctx.lineTo(x + 30, y + 6); ctx.lineTo(x + 12, y + 10); ctx.closePath(); ctx.fill(); ctx.stroke();
+
+            // Animated Wing (Flaps up and down using Sine wave)
+            // frameCount dictates the speed of the flap
+            let wingYOffset = Math.sin(frameCount * 0.4) * 5; 
+            
+            ctx.fillStyle = "#a93226";
+            ctx.beginPath(); 
+            // The Y coordinate of the wing uses the offset to move up and down
+            ctx.ellipse(x - 6, y + 4 + wingYOffset, 10, 6, (Math.PI / 6) + (wingYOffset * 0.05), 0, Math.PI * 2); 
+            ctx.fill(); ctx.stroke();
+        }
+
+        function drawPipe(x, y, w, h, isTop) {
+            let grad = ctx.createLinearGradient(x, 0, x + w, 0);
+            grad.addColorStop(0, "#27ae60"); grad.addColorStop(0.5, "#2ecc71"); grad.addColorStop(1, "#27ae60");
+            ctx.fillStyle = grad; ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = "#145a32"; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+            
+            const capHeight = 24, capWidth = w + 14, capX = x - 7;
+            const capY = isTop ? y + h - capHeight : y;
+            ctx.fillRect(capX, capY, capWidth, capHeight); ctx.strokeRect(capX, capY, capWidth, capHeight);
+        }
+
+        // --- GAME LOOP --- //
+        function gameLoop() {
+            if (!gameRunning) return; // Stop loop if game over
+            frameCount++;
+
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(videoElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
+            ctx.restore();
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+            ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // Smooth Movement
+            birdX += (targetBirdX - birdX) * 0.25; 
+            birdY += (targetBirdY - birdY) * 0.25;
+
+            // Pipes
+            if (pipes.length === 0 || pipes[pipes.length - 1].x < canvasElement.width - 250) {
+                const gapHeight = 160;
+                const topPipeHeight = Math.floor(Math.random() * (canvasElement.height - gapHeight - 100)) + 50; 
+                pipes.push({ x: canvasElement.width, width: 70, topHeight: topPipeHeight, bottomY: topPipeHeight + gapHeight, passed: false });
+            }
+
+            for (let i = 0; i < pipes.length; i++) {
+                let p = pipes[i];
+                p.x -= pipeSpeed; 
+                drawPipe(p.x, 0, p.width, p.topHeight, true);
+                drawPipe(p.x, p.bottomY, p.width, canvasElement.height - p.bottomY, false);
+
+                // Collision
+                const hitRadius = birdRadius * 0.8;
+                if (birdX + hitRadius > p.x && birdX - hitRadius < p.x + p.width) {
+                    if (birdY - hitRadius < p.topHeight || birdY + hitRadius > p.bottomY) endGame();
+                }
+
+                // Score & Level Up
+                if (!p.passed && p.x + p.width < birdX) {
+                    p.passed = true;
+                    score++;
+                    currentLevel = Math.floor(score / 5) + 1;
+                    pipeSpeed = baseSpeed + (currentLevel - 1) * 1.5;
+                    
+                    document.getElementById('scoreVal').innerText = score;
+                    document.getElementById('levelVal').innerText = currentLevel;
+                }
+            }
+
+            pipes = pipes.filter(p => p.x + p.width > 0);
+            if (birdY + birdRadius >= canvasElement.height || birdY - birdRadius <= 0) endGame();
+
+            drawBird(birdX, birdY, birdRadius);
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- CONTROLS --- //
+        function startGameFlow() {
+            pipes = [];
+            score = 0;
+            currentLevel = 1;
+            pipeSpeed = baseSpeed;
+            frameCount = 0;
+            
+            document.getElementById('scoreVal').innerText = score;
+            document.getElementById('levelVal').innerText = currentLevel;
+            
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            // Start Music
+            bgMusic.volume = 0.3; // Keep it quiet so it's not overwhelming
+            bgMusic.play().catch(e => console.log("Audio autoplay blocked, needs user interaction."));
+            
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function endGame() {
+            gameRunning = false;
+            bgMusic.pause();
+            saveScore();
+            document.getElementById('finalScoreDisplay').innerText = `Score: ${score}`;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // Button Listeners
+        document.getElementById('startBtn').addEventListener('click', () => {
+            let name = playerNameInput.value.trim();
+            if (name === "") name = "Guest";
+            currentPlayer = name;
+            document.getElementById('currentPlayerDisplay').innerText = currentPlayer;
+            startGameFlow();
+        });
+
+        document.getElementById('playAgainBtn').addEventListener('click', startGameFlow);
+
+        document.getElementById('newPlayerBtn').addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            playerNameInput.value = "";
+            playerNameInput.focus();
+        });
+    </script>
+</body>
+</html>

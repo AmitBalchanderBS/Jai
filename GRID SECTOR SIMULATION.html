@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Sector Simulation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            background-color: #050510;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            margin: 0; 
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+        }
+
+        #game-wrapper {
+            width: 900px; 
+            height: 700px; /* Fixed height prevents the collapse */
+            position: relative;
+            border: 4px solid #f0f; 
+            box-shadow: 0 0 20px #f0f, 0 0 40px #0ff inset;
+            background-color: #0a0a1a;
+            overflow: hidden; /* Keeps absolute screens inside */
+        }
+
+        /* --- Screens --- */
+        .screen {
+            position: absolute; 
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(10, 10, 26, 0.95);
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            z-index: 10;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 { color: #f0f; text-shadow: 2px 2px #0ff; font-size: 24px; line-height: 1.5; margin-bottom: 10px; }
+        h2 { color: #0ff; font-size: 14px; margin-top: 10px; margin-bottom: 30px; line-height: 1.5; }
+        p { font-size: 11px; line-height: 2; color: #ccc; max-width: 700px; margin-bottom: 20px; }
+        
+        button {
+            background-color: #000; color: #0ff;
+            border: 2px solid #0ff; font-family: 'Press Start 2P', cursive;
+            padding: 15px 30px; font-size: 14px; cursor: pointer; margin-top: 20px;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+        button:hover { background-color: #0ff; color: #000; box-shadow: 0 0 20px #0ff; }
+        
+        input {
+            background-color: #000; border: 2px solid #f0f; color: #f0f;
+            font-family: 'Press Start 2P', cursive; font-size: 14px;
+            padding: 15px; text-align: center; width: 400px; margin: 30px 0;
+            outline: none;
+        }
+        input:focus { box-shadow: 0 0 15px #f0f; }
+
+        .hidden { display: none !important; }
+
+        /* --- Main Game Interface --- */
+        #main-ui {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            padding: 20px; box-sizing: border-box;
+            background: #050510;
+        }
+
+        #hud {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #111; border: 2px solid #0ff; padding: 15px; margin-bottom: 15px;
+            font-size: 10px; color: #0ff; box-shadow: 0 0 10px rgba(0,255,255,0.2);
+        }
+        #hud div { display: flex; align-items: center; gap: 10px; }
+
+        /* The Simulation Grid Background */
+        #simulation-grid {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            padding: 15px;
+            border: 2px solid #333;
+            background-color: #1a1a2e;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 30px 30px;
+            overflow-y: auto;
+        }
+
+        .sector-node {
+            background-color: rgba(138, 43, 226, 0.1);
+            border: 2px solid #8a2be2;
+            padding: 15px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            font-size: 9px;
+            cursor: pointer;
+            transition: 0.2s;
+            height: 120px;
+        }
+        .sector-node:hover { border-color: #0ff; background-color: rgba(0, 255, 255, 0.1); }
+        .sector-node.active { background-color: rgba(0, 255, 255, 0.2); border-color: #0ff; box-shadow: 0 0 15px #0ff; }
+        .sector-node.warning { background-color: rgba(255, 165, 0, 0.2); border-color: #ffa500; }
+        .sector-node.critical { background-color: rgba(255, 0, 0, 0.2); border-color: #f00; animation: flash 0.5s infinite; }
+
+        @keyframes flash { 50% { border-color: transparent; background-color: rgba(255,0,0,0.4); } }
+
+        .sector-title { color: #fff; text-transform: uppercase; margin-bottom: 10px; font-size: 10px; line-height: 1.4; }
+        .stat-bar-container { background: #000; height: 8px; border: 1px solid #444; position: relative; margin: 8px 0; }
+        .stat-bar { height: 100%; position: absolute; top: 0; left: 0; transition: width 0.3s linear; }
+        .bar-label { font-size: 7px; color: #aaa; position: absolute; left: 0; top: -12px; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    
+    <!-- 1. Start Screen -->
+    <div id="start-screen" class="screen">
+        <h1>GRID SECTOR SIMULATION</h1>
+        <h2>CYBERNETIC CHRONICLES V.0.1</h2>
+        <p>You are the Primary Grid Administrator of the Megalopolis.</p>
+        <p>Your goal: Maintain grid stability. Click on critical sectors to route emergency resources and prevent system failure.</p>
+        <input type="text" id="player-name" placeholder="ENTER ADMIN ID" autocomplete="off">
+        <button onclick="startGame()">INITIALIZE SIMULATION</button>
+    </div>
+
+    <!-- 2. Simulation Analysis Phase -->
+    <div id="sim-analysis-screen" class="screen hidden">
+        <h1>PHASE COMPLETED</h1>
+        <h2>[ADMIN ID: <span id="analyst-name"></span>]</h2>
+        <p id="analysis-fact" style="text-align: left; padding: 25px; border: 2px solid #0ff; background: #000; font-size: 12px; line-height: 1.8;"></p>
+        <button onclick="startNextLevel()">COMMENCE NEXT PHASE</button>
+    </div>
+
+    <!-- 3. Final Scoreboard -->
+    <div id="score-screen" class="screen hidden">
+        <h1 style="color: #f00; text-shadow: 2px 2px #500;">SIMULATION TERMINATED</h1>
+        <h2>GRID COLLAPSE DETECTED</h2>
+        <p>Final Performance Metrics for Admin: <span id="score-name" style="color: #fff;"></span></p>
+        <p style="font-size: 24px; color: #0ff; margin: 30px 0;">FINAL SCORE: <span id="final-score"></span></p>
+        <button onclick="location.reload()">REBOOT SYSTEM</button>
+    </div>
+
+    <!-- Main Gameplay Area -->
+    <div id="main-ui" class="hidden">
+        <div id="hud">
+            <div>ADMIN: <span id="hud-name" style="color: #fff;"></span></div>
+            <div>PHASE: <span id="hud-level" style="color: #fff;"></span></div>
+            <div>CREDITS: <span id="hud-score" style="color: #f0f;"></span></div>
+            <div title="System Integrity">
+                INTEGRITY: 
+                <div class="stat-bar-container" style="width: 120px; margin:0;">
+                    <div id="hud-integrity-bar" class="stat-bar" style="background-color: #0f0; width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <p style="font-size: 9px; color: #ccc; margin-bottom: 15px; text-align: left;">[SYSTEM MESSAGE]: Select a Sector Node to assign direct administrative focus. This reduces stress and repairs integrity.</p>
+
+        <div id="simulation-grid">
+            <!-- Grid nodes injected here by JS -->
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let playerName = "";
+    let gameLoop;
+    let gridTicks;
+    
+    let gameState = {
+        score: 0,
+        level: 1,
+        totalIntegrity: 100,
+        resources: { assignedNodeIndex: null },
+        nodes: []
+    };
+
+    const TIK_RATE = 1000; 
+    const TICKS_PER_LEVEL = 20; 
+    const MIN_INTEGRITY_THRESHOLD = 10;
+
+    const baseNodeData = [
+        { name: "Primary Spire Core", powerDraw: 50, dataDraw: 80, integrity: 100 },
+        { name: "Data Archival", powerDraw: 30, dataDraw: 90, integrity: 100 },
+        { name: "Research Lab A1", powerDraw: 40, dataDraw: 70, integrity: 100 },
+        { name: "Orbital Uplink", powerDraw: 20, dataDraw: 90, integrity: 100 },
+        { name: "Residential Alpha", powerDraw: 60, dataDraw: 40, integrity: 100 },
+        { name: "Industrial Zone", powerDraw: 80, dataDraw: 20, integrity: 100 },
+        { name: "Hydroponics Bay", powerDraw: 40, dataDraw: 30, integrity: 100 },
+        { name: "Data Nexus C2", powerDraw: 30, dataDraw: 85, integrity: 100 },
+        { name: "Residential Beta", powerDraw: 55, dataDraw: 35, integrity: 100 },
+        { name: "Medical Hub", powerDraw: 45, dataDraw: 65, integrity: 100 },
+        { name: "Comm Tower E", powerDraw: 25, dataDraw: 95, integrity: 100 },
+        { name: "Emergency Hub", powerDraw: 30, dataDraw: 60, integrity: 100 }
+    ];
+
+    const levelFacts = [
+        "DISCOVERY SCIENCE LOG: Simulating real-world energy grids requires accounting for chaotic variable loads. Even a small fluctuation in energy demand can ripple across the entire network.",
+        "NAT GEO WILD LOG: Complex systems in nature, like neural networks or social insect colonies, use parallel decentralized processing to maintain stability. Managing this city requires similar natural load-balancing.",
+        "ENGINEERING LOG: Managing a mega-city grid requires massive-scale data processing. Deep-cycle cooling systems are required to manage the thermal output generated by these computations."
+    ];
+
+    function hideAllScreens() {
+        document.getElementById("start-screen").classList.add("hidden");
+        document.getElementById("sim-analysis-screen").classList.add("hidden");
+        document.getElementById("score-screen").classList.add("hidden");
+        document.getElementById("main-ui").classList.add("hidden");
+    }
+
+    function startGame() {
+        const input = document.getElementById("player-name").value.trim();
+        playerName = input ? input.toUpperCase() : "UNKNOWN_ADMIN";
+        document.getElementById("hud-name").innerText = playerName;
+        
+        hideAllScreens();
+        document.getElementById("main-ui").classList.remove("hidden");
+        
+        loadLevel(1);
+    }
+
+    function loadLevel(level) {
+        gameState.level = level;
+        gameState.totalIntegrity = 100;
+        gameState.nodes = JSON.parse(JSON.stringify(baseNodeData)); 
+        gameState.resources.assignedNodeIndex = null;
+        gridTicks = 0;
+
+        document.getElementById("hud-level").innerText = gameState.level;
+        updateScore(0);
+        updateIntegrityBar(100);
+        renderGrid();
+        
+        clearInterval(gameLoop);
+        gameLoop = setInterval(runSimulationTick, TIK_RATE);
+    }
+
+    function renderGrid() {
+        const gridDiv = document.getElementById("simulation-grid");
+        gridDiv.innerHTML = ""; 
+
+        gameState.nodes.forEach((node, index) => {
+            const nodeDiv = document.createElement("div");
+            nodeDiv.className = "sector-node";
+            nodeDiv.id = `node-${index}`;
+            nodeDiv.onclick = () => assignFocus(index);
+
+            nodeDiv.innerHTML = `
+                <div class="sector-title">${node.name}</div>
+                <div>
+                    <div class="stat-bar-container">
+                        <div class="bar-label">POWER DEMAND</div>
+                        <div class="stat-bar" style="background-color: #0ff; width: ${node.powerDraw}%;"></div>
+                    </div>
+                    <div class="stat-bar-container">
+                        <div class="bar-label">DATA FLOW</div>
+                        <div class="stat-bar" style="background-color: #f0f; width: ${node.dataDraw}%;"></div>
+                    </div>
+                    <div class="stat-bar-container">
+                        <div class="bar-label">NODE INTEGRITY</div>
+                        <div class="stat-bar" id="integrity-bar-${index}" style="background-color: #0f0; width: ${node.integrity}%;"></div>
+                    </div>
+                </div>
+            `;
+            
+            gridDiv.appendChild(nodeDiv);
+        });
+    }
+
+    function assignFocus(index) {
+        if (gameState.resources.assignedNodeIndex !== null) {
+            document.getElementById(`node-${gameState.resources.assignedNodeIndex}`).classList.remove("active");
+        }
+        gameState.resources.assignedNodeIndex = index;
+        document.getElementById(`node-${index}`).classList.add("active");
+    }
+
+    function runSimulationTick() {
+        gridTicks++;
+        let tickDamage = 0;
+
+        gameState.nodes.forEach((node, index) => {
+            const scalingFactor = 1 + (gameState.level - 1) * 0.15;
+            let nodeStress = (node.powerDraw + node.dataDraw) * scalingFactor / 2;
+            let nodeHealing = 0;
+
+            if (index === gameState.resources.assignedNodeIndex) {
+                nodeStress -= 40; 
+                nodeHealing += 15; 
+                gameState.score += 5; 
+            }
+
+            if (nodeStress > 50) { 
+                node.integrity -= (nodeStress - 50) / 8;
+                gameState.score += 10; 
+            } else {
+                node.integrity += nodeHealing + (50 - nodeStress) / 15; 
+                gameState.score += 2;
+            }
+
+            node.integrity = Math.max(0, Math.min(100, node.integrity));
+
+            const intBar = document.getElementById(`integrity-bar-${index}`);
+            intBar.style.width = `${node.integrity}%`;
+            
+            // Adjust individual node bar color based on health
+            if(node.integrity > 60) intBar.style.backgroundColor = "#0f0";
+            else if(node.integrity > 30) intBar.style.backgroundColor = "#ffa500";
+            else intBar.style.backgroundColor = "#f00";
+            
+            const nodeDiv = document.getElementById(`node-${index}`);
+            nodeDiv.classList.remove("warning", "critical");
+            
+            if (node.integrity < 30) {
+                nodeDiv.classList.add("critical");
+                tickDamage += 4; 
+            } else if (node.integrity < 60) {
+                nodeDiv.classList.add("warning");
+                tickDamage += 1; 
+            }
+        });
+
+        gameState.totalIntegrity = Math.max(0, gameState.totalIntegrity - tickDamage);
+        updateIntegrityBar(gameState.totalIntegrity);
+        updateScore(0); 
+
+        if (gameState.totalIntegrity <= MIN_INTEGRITY_THRESHOLD) {
+            triggerGameOver();
+            return;
+        }
+
+        if (gridTicks >= TICKS_PER_LEVEL) {
+            triggerSimulationPhaseComplete();
+        }
+    }
+
+    function updateIntegrityBar(val) {
+        const bar = document.getElementById("hud-integrity-bar");
+        bar.style.width = `${val}%`;
+        if(val > 60) bar.style.backgroundColor = "#0f0";
+        else if(val > 30) bar.style.backgroundColor = "#ffa500";
+        else bar.style.backgroundColor = "#f00";
+    }
+
+    function updateScore(add) {
+        gameState.score += add;
+        document.getElementById("hud-score").innerText = Math.floor(gameState.score);
+    }
+
+    function triggerSimulationPhaseComplete() {
+        clearInterval(gameLoop);
+        hideAllScreens();
+        
+        document.getElementById("analyst-name").innerText = playerName;
+        document.getElementById("analysis-fact").innerText = levelFacts[gameState.level - 1] || "The simulation reveals that complex networks require constant, proactive administration.";
+        document.getElementById("sim-analysis-screen").classList.remove("hidden");
+    }
+
+    function startNextLevel() {
+        hideAllScreens();
+        document.getElementById("main-ui").classList.remove("hidden");
+        loadLevel(gameState.level + 1);
+    }
+
+    function triggerGameOver() {
+        clearInterval(gameLoop);
+        hideAllScreens();
+        
+        document.getElementById("score-name").innerText = playerName;
+        document.getElementById("final-score").innerText = Math.floor(gameState.score);
+        document.getElementById("score-screen").classList.remove("hidden");
+    }
+</script>
+</body>
+</html>

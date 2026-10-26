@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parkes Radio Telescope AR</title>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 2px solid #00ffcc;
+            border-radius: 5px;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+            background-color: #000;
+        }
+        video {
+            display: none; 
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            /* Mirrors the canvas so your movements match what you see */
+            transform: scaleX(-1); 
+        }
+        #ui-layer {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 2;
+            pointer-events: none;
+            background: rgba(0, 20, 40, 0.7);
+            padding: 10px 20px;
+            border: 1px solid #00ffcc;
+            border-radius: 4px;
+        }
+        h1 { margin: 0; font-size: 16px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; }
+        #score-display { font-size: 28px; font-weight: bold; color: #fff; margin-top: 5px; }
+        
+        #message-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+            text-align: center;
+            pointer-events: none;
+            background: rgba(0,0,0,0.8);
+            padding: 30px;
+            border: 1px solid #ff003c;
+            border-radius: 8px;
+        }
+        .hidden { display: none; }
+        #game-over-text { color: #ff003c; font-size: 36px; font-weight: bold; text-shadow: 0 0 10px red; margin: 0;}
+        #restart-text { color: #00ffcc; font-size: 16px; margin-top: 10px; }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="game-container">
+        <video id="input_video" width="800" height="600" autoplay playsinline></video>
+        <canvas id="output_canvas" width="800" height="600"></canvas>
+        
+        <div id="ui-layer">
+            <h1>Terabytes Downloaded</h1>
+            <div id="score-display">0.0 TB</div>
+        </div>
+
+        <div id="message-overlay" class="hidden">
+            <h2 id="game-over-text">SIGNAL CORRUPTED</h2>
+            <p id="restart-text">Center your head to recalibrate dish...</p>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const messageOverlay = document.getElementById('message-overlay');
+
+        let isGameRunning = false;
+        let isCameraReady = false;
+        let score = 0;
+        let frameCount = 0;
+        let gameSpeed = 4;
+
+        // Player is now the Parkes Telescope Dish
+        const player = { x: 400, y: 500, width: 80, height: 20, color: '#00ffcc' };
+
+        let entities = [];
+
+        function spawnEntity() {
+            const isSignal = Math.random() > 0.35; // 65% chance of Good Signal, 35% Bad Radiation
+            const size = Math.random() * 20 + 20;
+            const x = Math.random() * (canvasElement.width - size);
+            entities.push({
+                x: x,
+                y: -size,
+                size: size,
+                type: isSignal ? 'signal' : 'radiation'
+            });
+        }
+
+        function resetGame() {
+            entities = [];
+            score = 0;
+            gameSpeed = 4;
+            frameCount = 0;
+            scoreDisplay.innerText = "0.0 TB";
+            messageOverlay.classList.add('hidden');
+            isGameRunning = true;
+        }
+
+        function onResults(results) {
+            if (!isCameraReady) {
+                isCameraReady = true;
+                resetGame();
+            }
+
+            // 1. Draw the live camera feed
+            canvasCtx.save();
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Add a slight dark blue sci-fi tint over the camera
+            canvasCtx.fillStyle = 'rgba(0, 15, 30, 0.4)';
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 2. Map Nose to Telescope Dish
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const nose = results.multiFaceLandmarks[0][1]; 
+                player.x = canvasElement.width - (nose.x * canvasElement.width) - (player.width / 2);
+                
+                if (player.x < 0) player.x = 0;
+                if (player.x > canvasElement.width - player.width) player.x = canvasElement.width - player.width;
+            }
+
+            // Draw the Telescope Dish (Player)
+            canvasCtx.fillStyle = player.color;
+            canvasCtx.beginPath();
+            canvasCtx.arc(player.x + player.width/2, player.y + player.height, player.width/2, Math.PI, 2 * Math.PI);
+            canvasCtx.fill();
+
+            if (isGameRunning) {
+                frameCount++;
+                if (frameCount % Math.max(20, 50 - Math.floor(score)) === 0) spawnEntity();
+
+                for (let i = entities.length - 1; i >= 0; i--) {
+                    let ent = entities[i];
+                    ent.y += gameSpeed;
+
+                    // Draw Entity
+                    if (ent.type === 'signal') {
+                        // Draw cyan circle (Good Data)
+                        canvasCtx.fillStyle = '#00ffcc';
+                        canvasCtx.beginPath();
+                        canvasCtx.arc(ent.x + ent.size/2, ent.y + ent.size/2, ent.size/2, 0, 2 * Math.PI);
+                        canvasCtx.fill();
+                    } else {
+                        // Draw red jagged radiation (Bad Data)
+                        canvasCtx.fillStyle = '#ff003c';
+                        canvasCtx.fillRect(ent.x, ent.y, ent.size, ent.size);
+                    }
+
+                    // Collision Detection
+                    if (player.x < ent.x + ent.size &&
+                        player.x + player.width > ent.x &&
+                        player.y < ent.y + ent.size &&
+                        player.y + player.height > ent.y) {
+                        
+                        if (ent.type === 'signal') {
+                            // Catching good data!
+                            entities.splice(i, 1);
+                            score += 1.5;
+                            scoreDisplay.innerText = score.toFixed(1) + " TB";
+                            
+                            // Flash screen cyan
+                            canvasCtx.fillStyle = 'rgba(0, 255, 204, 0.3)';
+                            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+                            
+                            if (score % 15 === 0) gameSpeed += 1;
+                        } else {
+                            // Hit by radiation! Game Over.
+                            isGameRunning = false;
+                            messageOverlay.classList.remove('hidden');
+                        }
+                    } else if (ent.y > canvasElement.height) {
+                        entities.splice(i, 1);
+                    }
+                }
+            } else {
+                // Restart logic (Center head)
+                if (player.x > 360 && player.x < 440) {
+                     setTimeout(() => { if(!isGameRunning && player.x > 360 && player.x < 440) resetGame(); }, 1000);
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        faceMesh.onResults(onResults);
+
+        const camera = new Camera(videoElement, { onFrame: async () => { await faceMesh.send({image: videoElement}); }, width: 800, height: 600 });
+        camera.start();
+    </script>
+</body>
+</html>

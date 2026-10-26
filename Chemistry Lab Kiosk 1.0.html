@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chemistry Mix Game - Randomized Quiz Engine</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        body { background-color: #1e1e24; color: white; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow: hidden; padding-top: 20px; }
+
+        #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1e1e24; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; }
+        #start-btn { padding: 20px 40px; font-size: 2rem; background: #fca311; color: #1e1e24; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; box-shadow: 0 10px 30px rgba(252,163,17,0.4); transition: transform 0.2s ease; }
+        #start-btn:active { transform: scale(0.95); }
+
+        #game-ui { display: none; width: 100%; flex-direction: column; align-items: center; }
+
+        .header-bar { display: flex; justify-content: space-between; width: 80%; margin-bottom: 10px; font-size: 1.5rem; font-weight: bold; }
+        .score-display { color: #32cd32; }
+        .level-display { color: #fca311; }
+        h1 { margin-bottom: 10px; font-size: 2rem; }
+        p.subtitle { margin-bottom: 20px; font-size: 1.1rem; color: #aaa; text-align: center; }
+
+        .workbench { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 80px; width: 100%; height: 65vh; }
+        .group-container { display: flex; gap: 30px; padding: 30px; background: rgba(255, 255, 255, 0.03); border-radius: 20px; border: 2px dashed rgba(255, 255, 255, 0.1); position: relative; }
+        .group-title { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #1e1e24; padding: 0 15px; color: #888; font-weight: bold; font-size: 1.2rem; }
+        .tube-container { display: flex; flex-direction: column; align-items: center; transition: opacity 0.5s ease; }
+
+        .test-tube { width: 80px; height: 220px; border: 5px solid rgba(255, 255, 255, 0.4); border-top: none; border-bottom-left-radius: 40px; border-bottom-right-radius: 40px; position: relative; cursor: pointer; overflow: hidden; background: rgba(255, 255, 255, 0.05); transition: transform 1s ease-in-out, box-shadow 0.3s ease; z-index: 1; }
+        .test-tube.selected { transform: translateY(-20px); box-shadow: 0 0 20px rgba(255, 255, 255, 0.6); border-color: rgba(255, 255, 255, 0.8); }
+        .test-tube.pouring { z-index: 10; }
+        .liquid { position: absolute; bottom: 0; width: 100%; height: 45%; transition: background-color 1.5s ease-in-out, height 1s ease-in-out; }
+        .label { margin-top: 15px; font-size: 1rem; font-weight: bold; text-align: center; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); justify-content: center; align-items: center; z-index: 20; }
+        .modal-content { background: #2b2b36; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 600px; width: 90%; }
+        .modal-content h2 { margin-bottom: 20px; font-size: 2rem; color: #fff; }
+        .quiz-btn { display: block; width: 100%; padding: 15px; margin: 10px 0; font-size: 1.2rem; background: #3a3a48; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: background 0.3s ease; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <h1 style="margin-bottom: 40px; color: #fff;">Chemistry Lab Kiosk</h1>
+        <button id="start-btn" onclick="startGame()">Tap to Start Lab</button>
+    </div>
+
+    <div id="game-ui">
+        <div class="header-bar">
+            <div class="level-display" id="level-display">Level 1</div>
+            <div class="score-display" id="score-display">Score: 0</div>
+        </div>
+
+        <h1 id="instructions">The Chemistry Lab</h1>
+        <p class="subtitle" id="combo-tracker">Test every additive against every base to complete the level!</p>
+        
+        <div class="workbench">
+            <div class="group-container" id="bases-group"></div>
+            <div class="group-container" id="additives-group"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="quiz-modal">
+        <div class="modal-content">
+            <h2 id="quiz-question">Question goes here?</h2>
+            <div id="quiz-options"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- CUSTOM WEB AUDIO SYNTHESIZER ---
+        let audioCtx;
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
+        function playTapSound() { if(!audioCtx) return; const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='sine'; o.frequency.setValueAtTime(1200,audioCtx.currentTime); g.gain.setValueAtTime(0.5,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.1); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.1); }
+        function playPourSound() { if(!audioCtx) return; const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='triangle'; o.frequency.setValueAtTime(500,audioCtx.currentTime); o.frequency.linearRampToValueAtTime(200,audioCtx.currentTime+1.0); g.gain.setValueAtTime(0.3,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0.01,audioCtx.currentTime+1.0); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+1.0); }
+        function playReactionSound(dur) { if(!audioCtx) return; const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='sine'; o.frequency.setValueAtTime(300,audioCtx.currentTime); o.frequency.exponentialRampToValueAtTime(800,audioCtx.currentTime+dur); g.gain.setValueAtTime(0,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0.2,audioCtx.currentTime+(dur/2)); g.gain.linearRampToValueAtTime(0.01,audioCtx.currentTime+dur); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+dur); }
+        function playCorrectSound() { if(!audioCtx) return; const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='sine'; o.frequency.setValueAtTime(1000,audioCtx.currentTime); o.frequency.exponentialRampToValueAtTime(2000,audioCtx.currentTime+0.1); g.gain.setValueAtTime(1,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.3); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.3); }
+        function playWrongSound() { if(!audioCtx) return; const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(150,audioCtx.currentTime); o.frequency.linearRampToValueAtTime(100,audioCtx.currentTime+0.3); g.gain.setValueAtTime(0.3,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.3); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.3); }
+
+        // --- COMBINATORIAL DATA STRUCTURE ---
+        const levels = [
+            { 
+                bases: [ { id: 'b1', color: 'rgba(255,255,255,0.1)', label: 'Base 1' } ],
+                additives: [ { id: 'a1', color: 'rgba(255,20,147,0.8)', label: 'Additive A' } ],
+                reactions: {
+                    "a1+b1": {
+                        colors: ['rgba(0,150,255,0.8)', 'rgba(50,205,50,0.9)', 'rgba(255,215,0,0.9)'], 
+                        question: "What type of additive causes this shifting color change?",
+                        options: [
+                            { text: "Potassium Permanganate", points: 20, status: "correct" },
+                            { text: "A Redox Agent", points: 10, status: "partial" },
+                            { text: "Food Coloring", points: 0, status: "wrong" }
+                        ]
+                    }
+                }
+            },
+            { 
+                bases: [ { id: 'b1', color: 'rgba(255,255,255,0.1)', label: 'Base 1' } ],
+                additives: [ 
+                    { id: 'a1', color: 'rgba(255,20,147,0.8)', label: 'Additive A' },
+                    { id: 'a2', color: 'rgba(0,255,127,0.8)', label: 'Additive B' }
+                ],
+                reactions: {
+                    "a1+b1": {
+                        colors: ['rgba(128,0,128,0.9)'], 
+                        question: "Additive A turned the clear base purple. What does this indicate?",
+                        options: [
+                            { text: "An Alkaline (Base) reaction", points: 20, status: "correct" },
+                            { text: "A mild pH change", points: 10, status: "partial" },
+                            { text: "An Acidic reaction", points: 0, status: "wrong" }
+                        ]
+                    },
+                    "a2+b1": {
+                        colors: ['rgba(255, 69, 0, 0.9)'], 
+                        question: "Additive B caused an immediate acid flash (Red). What is it?",
+                        options: [
+                            { text: "Acetic Acid (Vinegar)", points: 20, status: "correct" },
+                            { text: "A mild acid", points: 10, status: "partial" },
+                            { text: "Baking Soda", points: 0, status: "wrong" }
+                        ]
+                    }
+                }
+            },
+            { 
+                bases: [ 
+                    { id: 'b1', color: 'rgba(255,255,255,0.1)', label: 'Base 1' }, 
+                    { id: 'b2', color: 'rgba(0,100,255,0.3)', label: 'Base 2 (Copper)' } 
+                ],
+                additives: [ 
+                    { id: 'a1', color: 'rgba(255,255,0,0.8)', label: 'Additive A' }, 
+                    { id: 'a2', color: 'rgba(255,20,147,0.8)', label: 'Additive B' } 
+                ],
+                reactions: {
+                    "a1+b1": {
+                        colors: ['rgba(255,255,255,0.1)', 'rgba(0, 0, 0, 0.9)'], 
+                        question: "Additive A in Base 1 suddenly turned pitch black. What is this?",
+                        options: [{ text: "Iodine Clock", points: 20, status: "correct" }, { text: "Time-delay", points: 10, status: "partial" }, { text: "Neutralization", points: 0, status: "wrong" }]
+                    },
+                    "a1+b2": {
+                        colors: ['rgba(50, 205, 50, 0.9)'], 
+                        question: "Additive A in Base 2 turned vibrant green. What formed?",
+                        options: [{ text: "Copper(II) Complex", points: 20, status: "correct" }, { text: "A weak acid", points: 10, status: "partial" }, { text: "Sugar water", points: 0, status: "wrong" }]
+                    },
+                    "a2+b1": {
+                        colors: ['rgba(255, 255, 255, 0.9)'], 
+                        question: "Additive B in Base 1 turned cloudy white. What is this process?",
+                        options: [{ text: "Precipitation", points: 20, status: "correct" }, { text: "Creating a solid", points: 10, status: "partial" }, { text: "Boiling", points: 0, status: "wrong" }]
+                    },
+                    "a2+b2": {
+                        colors: ['rgba(0, 50, 200, 0.9)'], 
+                        question: "Additive B in Base 2 shifted to a deep, dark blue. Why?",
+                        options: [{ text: "Ammonia complexing", points: 20, status: "correct" }, { text: "Dilution", points: 10, status: "partial" }, { text: "Evaporation", points: 0, status: "wrong" }]
+                    }
+                }
+            }
+        ];
+
+        let currentLevel = 0;
+        let score = 0;
+        let selectedTube = null;
+        let completedCombinations = [];
+        let totalPossibleCombinations = 0;
+        let activeCombo = "";
+
+        function startGame() {
+            initAudio(); 
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'flex';
+            loadLevel(0);
+        }
+
+        function updateTracker() {
+            document.getElementById('combo-tracker').innerText = 
+                `Tested: ${completedCombinations.length} / ${totalPossibleCombinations} combinations. Mix them all to advance!`;
+        }
+
+        function loadLevel(levelIndex) {
+            if (levelIndex >= levels.length) {
+                document.getElementById('instructions').innerText = "Game Complete!";
+                document.getElementById('combo-tracker').innerText = "Final Score: " + score;
+                document.getElementById('bases-group').innerHTML = "";
+                document.getElementById('additives-group').innerHTML = "";
+                return;
+            }
+
+            const level = levels[levelIndex];
+            completedCombinations = [];
+            totalPossibleCombinations = level.bases.length * level.additives.length;
+            
+            document.getElementById('level-display').innerText = `Level ${levelIndex + 1}`;
+            updateTracker();
+            
+            const basesGroup = document.getElementById('bases-group');
+            basesGroup.innerHTML = '<div class="group-title">BASES</div>';
+            level.bases.forEach(base => {
+                basesGroup.innerHTML += `<div class="tube-container" id="container-${base.id}"><div class="test-tube base" id="${base.id}" onclick="pourIntoBase('${base.id}')"><div class="liquid" style="background-color: ${base.color};"></div></div><div class="label">${base.label}</div></div>`;
+            });
+
+            const additivesGroup = document.getElementById('additives-group');
+            additivesGroup.innerHTML = '<div class="group-title">ADDITIVES</div>';
+            level.additives.forEach(add => {
+                additivesGroup.innerHTML += `<div class="tube-container" id="container-${add.id}"><div class="test-tube additive" id="${add.id}" onclick="selectAdditive('${add.id}')"><div class="liquid" style="background-color: ${add.color};"></div></div><div class="label">${add.label}</div></div>`;
+            });
+        }
+
+        function selectAdditive(tubeId) {
+            playTapSound(); 
+            if (selectedTube) document.getElementById(selectedTube).classList.remove('selected');
+            if (selectedTube === tubeId) { selectedTube = null; return; }
+            selectedTube = tubeId;
+            document.getElementById(tubeId).classList.add('selected');
+        }
+
+        function pourIntoBase(baseId) {
+            if (!selectedTube) return;
+
+            activeCombo = selectedTube + "+" + baseId;
+            const levelObj = levels[currentLevel];
+            
+            if (completedCombinations.includes(activeCombo)) {
+                alert("You already tested this combination! Try a different mix.");
+                document.getElementById(selectedTube).classList.remove('selected');
+                selectedTube = null;
+                return;
+            }
+
+            const reactionData = levelObj.reactions[activeCombo];
+            if (!reactionData) return;
+
+            let sourceTube = document.getElementById(selectedTube);
+            let targetTube = document.getElementById(baseId);
+            let sourceLiquid = sourceTube.querySelector('.liquid');
+            let targetLiquid = targetTube.querySelector('.liquid');
+
+            sourceTube.classList.remove('selected');
+            sourceTube.classList.add('pouring');
+
+            let sourceRect = sourceTube.getBoundingClientRect();
+            let targetRect = targetTube.getBoundingClientRect();
+            let moveX = targetRect.left - sourceRect.left - 30; 
+            let moveY = targetRect.top - sourceRect.top - 90; 
+
+            sourceTube.style.transform = `translate(${moveX}px, ${moveY}px) rotate(-60deg)`;
+
+            setTimeout(() => {
+                playPourSound(); 
+                sourceLiquid.style.height = '0'; 
+                targetLiquid.style.height = '80%'; 
+            }, 500);
+
+            setTimeout(() => {
+                sourceTube.style.transform = '';
+                sourceTube.classList.remove('pouring');
+                
+                let sequenceColors = reactionData.colors;
+                let totalWaitTime = sequenceColors.length * 1500;
+                
+                playReactionSound(totalWaitTime / 1000); 
+
+                sequenceColors.forEach((color, index) => {
+                    setTimeout(() => { targetLiquid.style.backgroundColor = color; }, index * 1500);
+                });
+                
+                setTimeout(() => { showQuiz(reactionData); }, totalWaitTime + 1000); 
+            }, 1500);
+        }
+
+        // --- NEW ARRAY SHUFFLER FUNCTION ---
+        function shuffleArray(array) {
+            let shuffled = [...array]; // Create a copy of the array
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; // Swap elements
+            }
+            return shuffled;
+        }
+
+        function showQuiz(reactionData) {
+            document.getElementById('quiz-question').innerText = reactionData.question;
+            const optionsDiv = document.getElementById('quiz-options');
+            optionsDiv.innerHTML = ''; 
+            
+            // Randomize the options before rendering them!
+            const randomizedOptions = shuffleArray(reactionData.options);
+            
+            randomizedOptions.forEach(opt => {
+                let btn = document.createElement('button');
+                btn.className = 'quiz-btn';
+                btn.innerText = opt.text;
+                btn.onclick = function() { handleAnswer(this, opt.status, opt.points); };
+                optionsDiv.appendChild(btn);
+            });
+            document.getElementById('quiz-modal').style.display = 'flex';
+        }
+
+        function handleAnswer(buttonElement, status, points) {
+            let allButtons = document.querySelectorAll('.quiz-btn');
+            allButtons.forEach(btn => btn.disabled = true);
+
+            if (status === 'correct') { buttonElement.style.background = '#32cd32'; score += points; playCorrectSound(); } 
+            else if (status === 'partial') { buttonElement.style.background = '#ffa500'; score += points; playCorrectSound(); } 
+            else { buttonElement.style.background = '#ff4500'; playWrongSound(); }
+
+            document.getElementById('score-display').innerText = "Score: " + score;
+
+            setTimeout(() => { 
+                document.getElementById('quiz-modal').style.display = 'none'; 
+                
+                completedCombinations.push(activeCombo);
+                updateTracker();
+
+                const levelObj = levels[currentLevel];
+                
+                if (completedCombinations.length === totalPossibleCombinations) {
+                    currentLevel++; 
+                    loadLevel(currentLevel); 
+                } 
+                else {
+                    let [addId, baseId] = activeCombo.split('+');
+                    
+                    let originalBaseColor = levelObj.bases.find(b => b.id === baseId).color;
+                    let targetLiquid = document.getElementById(baseId).querySelector('.liquid');
+                    targetLiquid.style.height = '45%';
+                    targetLiquid.style.backgroundColor = originalBaseColor;
+
+                    let originalAddColor = levelObj.additives.find(a => a.id === addId).color;
+                    let sourceLiquid = document.getElementById(addId).querySelector('.liquid');
+                    sourceLiquid.style.height = '45%';
+                    sourceLiquid.style.backgroundColor = originalAddColor;
+                    
+                    activeCombo = "";
+                    selectedTube = null;
+                }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

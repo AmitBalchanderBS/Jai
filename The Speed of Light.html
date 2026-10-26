@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Earth-to-Moon Ping</title>
+    <style>
+        /* CSS RESET & BASE STYLES */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* GLASSMORPHISM UI PANEL */
+        .ui-panel {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 600px;
+            text-align: center;
+            margin-bottom: 4rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .ui-panel h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .ui-panel p {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .highlight {
+            color: #00e5ff;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 1.2rem;
+        }
+
+        /* SPACE SIMULATION CONTAINER */
+        .simulation-container {
+            width: 90%;
+            max-width: 1000px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            padding: 2rem 0;
+        }
+
+        /* CELESTIAL BODIES */
+        .earth {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe, #022a4f);
+            box-shadow: 0 0 30px rgba(79, 172, 254, 0.4), inset -15px -15px 20px rgba(0,0,0,0.7);
+            z-index: 10;
+            position: relative;
+        }
+
+        .moon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #d4d4d4, #8a8a8a, #2a2a2a);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2), inset -5px -5px 10px rgba(0,0,0,0.8);
+            z-index: 10;
+            position: relative;
+        }
+
+        /* THE VACUUM OF SPACE (DISTANCE TRACK) */
+        .track {
+            position: absolute;
+            left: 50px; /* Start at Earth center */
+            right: 15px; /* End at Moon center */
+            height: 2px;
+            background: dashed rgba(255, 255, 255, 0.15) 4px;
+            z-index: 1;
+        }
+
+        /* THE PHOTON (LIGHT BEAM) */
+        .photon {
+            position: absolute;
+            left: 0;
+            top: -4px;
+            width: 40px;
+            height: 10px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px 5px #00e5ff, 0 0 30px 10px rgba(0, 229, 255, 0.5);
+            opacity: 0;
+            /* 
+               CRITICAL PHYSICS DETAIL:
+               Animation is strictly linear. Light does not accelerate or decelerate in a vacuum.
+               Duration is exactly 1.28s.
+            */
+            transition: left 1.28s linear; 
+            z-index: 5;
+        }
+
+        /* MOON IMPACT RIPPLE */
+        .ripple {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid #00e5ff;
+            opacity: 0;
+            z-index: 15;
+            pointer-events: none;
+        }
+
+        @keyframes pingEffect {
+            0% {
+                width: 30px;
+                height: 30px;
+                opacity: 1;
+            }
+            100% {
+                width: 150px;
+                height: 150px;
+                opacity: 0;
+            }
+        }
+
+        .ripple.active {
+            animation: pingEffect 0.6s ease-out forwards;
+        }
+
+        /* CONTROLS */
+        .controls {
+            margin-top: 3rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        button {
+            background: transparent;
+            color: #ffffff;
+            border: 2px solid #00e5ff;
+            padding: 1rem 2.5rem;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #00e5ff;
+            color: #000;
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+        }
+
+        button:disabled {
+            border-color: #555;
+            color: #555;
+            box-shadow: none;
+            cursor: not-allowed;
+            background: transparent;
+        }
+
+        #status {
+            font-family: monospace;
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.6);
+            min-height: 24px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="ui-panel">
+        <h1>The Speed of Light</h1>
+        <p>Light is incredibly fast, but space is unfathomably large. The distance from Earth to the Moon is roughly <strong>384,400 kilometers</strong>.</p>
+        <p>Traveling at <span class="highlight">299,792 km/s</span>, it takes light exactly <span class="highlight">1.28 seconds</span> to bridge that gap.</p>
+    </div>
+
+    <div class="simulation-container">
+        <div class="earth"></div>
+        
+        <div class="track" id="track">
+            <div class="photon" id="photon"></div>
+        </div>
+
+        <div class="moon">
+            <div class="ripple" id="ripple"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="ping-btn">Send Light to the Moon</button>
+        <div id="status">Ready for transmission.</div>
+    </div>
+
+    <script>
+        const btn = document.getElementById('ping-btn');
+        const photon = document.getElementById('photon');
+        const statusText = document.getElementById('status');
+        const ripple = document.getElementById('ripple');
+        const track = document.getElementById('track');
+
+        btn.addEventListener('click', () => {
+            // 1. Reset state instantly
+            photon.style.transition = 'none'; // Disable transition for instant reset
+            photon.style.left = '0%';
+            photon.style.opacity = '1';
+            ripple.classList.remove('active');
+            
+            // Force browser reflow to apply the reset before the animation starts
+            void photon.offsetWidth; 
+
+            // 2. Start Animation State
+            btn.disabled = true;
+            statusText.style.color = '#00e5ff';
+            statusText.innerText = 'Transmitting at 299,792 km/s...';
+
+            // Calculate exact width to traverse based on responsive track width
+            const endPosition = track.offsetWidth - photon.offsetWidth;
+
+            // Apply strict linear physics transition
+            photon.style.transition = 'left 1.28s linear';
+            photon.style.left = `${endPosition}px`;
+
+            // 3. Impact Event (Exactly 1.28s later)
+            setTimeout(() => {
+                // Trigger Moon impact ring
+                ripple.classList.add('active');
+                
+                // Hide photon
+                photon.style.opacity = '0';
+                
+                // Update UI
+                statusText.style.color = '#00ff00';
+                statusText.innerText = 'Impact confirmed. Time elapsed: 1.28s';
+                
+                // Re-enable button after a brief cooldown
+                setTimeout(() => {
+                    btn.disabled = false;
+                    statusText.style.color = 'rgba(255, 255, 255, 0.6)';
+                    statusText.innerText = 'Ready for next transmission.';
+                }, 1500);
+
+            }, 1280); // 1280 milliseconds = 1.28 seconds
+        });
+    </script>
+</body>
+</html>

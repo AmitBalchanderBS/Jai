@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relic's Revenge - Playable Prototype</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base Reset & Variables */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-color: #1a1a1a; --sky-color: #1e3b4d;
+            --platform-top: #387b32; --platform-side: #4b3017;
+            --gold: #ffd700; --hero-shirt: #c9a675;
+            --hero-hat: #6d4c41; --slime-color: #32cd32;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; font-family: 'Press Start 2P', cursive; color: white;
+        }
+
+        /* The Game Console/Screen Wrapper */
+        .game-wrapper {
+            position: relative; width: 800px; height: 600px;
+            background-color: var(--sky-color); border: 15px solid #333;
+            border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.8), inset 0 0 50px rgba(0,0,0,0.5);
+            overflow: hidden; image-rendering: pixelated;
+        }
+
+        .scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px; z-index: 100; pointer-events: none;
+        }
+
+        .ui-bar {
+            position: absolute; top: 0; width: 100%; padding: 20px;
+            display: flex; justify-content: space-between; z-index: 10;
+            font-size: 14px; text-shadow: 2px 2px 0 #000;
+        }
+        .health { color: #ff3333; }
+
+        /* Environment */
+        .platform { position: absolute; background-color: var(--platform-side); border-top: 8px solid var(--platform-top); }
+        .floor { bottom: 0; width: 100%; height: 80px; }
+        .platform-1 { bottom: 120px; left: 150px; width: 120px; height: 30px; }
+        .platform-2 { bottom: 220px; left: 350px; width: 150px; height: 30px; }
+        .platform-3 { bottom: 350px; right: 100px; width: 100px; height: 30px; }
+
+        /* Hazards */
+        .spikes {
+            position: absolute; bottom: 80px; left: 400px; width: 100px; height: 20px;
+            background: repeating-linear-gradient(45deg, transparent, transparent 10px, #999 10px, #999 20px);
+            clip-path: polygon(0% 100%, 10% 0%, 20% 100%, 30% 0%, 40% 100%, 50% 0%, 60% 100%, 70% 0%, 80% 100%, 90% 0%, 100% 100%);
+        }
+
+        /* The Explorer */
+        .hero {
+            position: absolute; bottom: 80px; left: 50px; width: 32px; height: 48px;
+            background-color: var(--hero-shirt); border: 4px solid #000;
+        }
+        .hero::before {
+            content: ''; position: absolute; top: -12px; left: -8px; width: 40px; height: 12px;
+            background-color: var(--hero-hat); border: 4px solid #000;
+        }
+        .hero::after {
+            content: ''; position: absolute; top: 20px; right: -25px; width: 25px; height: 4px; background-color: #5c3a21;
+        }
+
+        /* Slime & Items */
+        .slime {
+            position: absolute; bottom: 80px; left: 600px; width: 24px; height: 20px;
+            background-color: var(--slime-color); border: 4px solid #000; border-radius: 10px 10px 0 0;
+            animation: slimePatrol 3s infinite alternate ease-in-out;
+        }
+        .puzzle-piece {
+            position: absolute; bottom: 400px; right: 135px; width: 24px; height: 24px;
+            background-color: var(--gold); border: 4px solid #fff; box-shadow: 0 0 15px var(--gold);
+            animation: float 1.5s infinite alternate ease-in-out;
+        }
+        .bg-ruins {
+            position: absolute; bottom: 80px; left: 200px; width: 60px; height: 150px;
+            background-color: #2a4a35; z-index: -1; border: 4px solid #1a2e21; opacity: 0.6;
+        }
+
+        /* Animations */
+        @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-15px); } }
+        @keyframes slimePatrol { 0% { transform: translateX(0); } 100% { transform: translateX(-150px); } }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <div class="scanlines"></div>
+        <div class="ui-bar">
+            <div>LEVEL 1: WHISPERING RUINS</div>
+            <div class="health">HP: ♥ ♥ ♥</div>
+            <div>PIECES: 0/5</div>
+        </div>
+
+        <div class="bg-ruins"></div>
+        <div class="platform floor"></div>
+        <div class="platform platform-1"></div>
+        <div class="platform platform-2"></div>
+        <div class="platform platform-3"></div>
+        <div class="spikes"></div>
+        
+        <!-- Added ID to hero for JavaScript targeting -->
+        <div id="hero" class="hero"></div>
+        
+        <div class="slime"></div>
+        <div class="puzzle-piece"></div>
+    </div>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        const heroElement = document.getElementById('hero');
+        
+        // Physics variables
+        let x = 50;           // Starting left position
+        let y = 80;           // Starting bottom position (floor level)
+        let vx = 0;           // Horizontal velocity
+        let vy = 0;           // Vertical velocity
+        const speed = 5;      // Running speed
+        const gravity = 0.6;  // How fast the player falls
+        const jumpPower = 12; // How high the player jumps
+        let isGrounded = true;
+
+        // Track key presses
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            ArrowUp: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+        });
+
+        // The main game loop
+        function update() {
+            // Horizontal Movement
+            if (keys.ArrowLeft) {
+                vx = -speed;
+            } else if (keys.ArrowRight) {
+                vx = speed;
+            } else {
+                vx = 0; // Stop moving if no key is pressed
+            }
+
+            // Jumping
+            if (keys.ArrowUp && isGrounded) {
+                vy = jumpPower;
+                isGrounded = false;
+            }
+
+            // Apply gravity
+            vy -= gravity; 
+            
+            // Update positions
+            x += vx;
+            y += vy;
+
+            // Basic Floor Collision (Prevents falling through the bottom)
+            if (y <= 80) {
+                y = 80;
+                vy = 0;
+                isGrounded = true;
+            }
+
+            // Screen boundaries (Prevents walking off screen)
+            if (x < 0) x = 0;
+            if (x > 738) x = 738; // 800 (game width) - 32 (hero width) minus border
+
+            // Apply new positions to the HTML element
+            heroElement.style.left = x + 'px';
+            heroElement.style.bottom = y + 'px';
+
+            // Loop to the next frame
+            requestAnimationFrame(update);
+        }
+
+        // Start the game loop
+        update();
+    </script>
+</body>
+</html>

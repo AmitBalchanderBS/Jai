@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thermal Solar System Widget</title>
+    <style>
+        /* CSS RESET & BASE STYLES */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000000; /* Dark website background */
+            color: #ffffff;
+            width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* THE EXHIBIT CONTAINER (Locks the size) */
+        .exhibit-card {
+            width: 100%;
+            max-width: 750px; /* Limits how big it gets on desktop */
+            background: #01010b; /* Deep cold thermal background */
+            border: 2px solid rgba(0, 255, 255, 0.2);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* TACTICAL HUD UI */
+        .dashboard {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+            background: rgba(0, 10, 30, 0.9);
+            z-index: 100;
+        }
+
+        .dashboard h1 {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 0.5rem;
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        .dashboard-metrics {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .clock-container {
+            background: rgba(0, 20, 50, 0.6);
+            border: 1px solid #00ffff;
+            border-radius: 4px;
+            padding: 0.5rem 1.5rem;
+            box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.1);
+        }
+
+        .clock {
+            font-family: monospace;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffffff;
+            letter-spacing: 2px;
+        }
+
+        .clock-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #00ffff;
+            margin-top: 5px;
+        }
+
+        /* CONTROLS */
+        button {
+            background: rgba(255, 50, 0, 0.1);
+            color: #ff3300;
+            border: 1px solid #ff3300;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(255, 50, 0, 0.2);
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background: #ff3300;
+            color: #fff;
+            box-shadow: 0 0 25px rgba(255, 50, 0, 0.6);
+        }
+
+        button:disabled {
+            border-color: #555;
+            color: #555;
+            box-shadow: none;
+            cursor: not-allowed;
+            background: transparent;
+        }
+
+        /* THE SIMULATION WINDOW (Perfect Square) */
+        .simulation-window {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1; /* Locks height to perfectly match width */
+            overflow: hidden;
+            
+            /* Thermal HUD Grid */
+            background-image: 
+                linear-gradient(rgba(0, 50, 150, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 50, 150, 0.15) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* CENTER ANCHOR FOR SOLAR SYSTEM */
+        .solar-system {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* Allows grid to be clickable if needed */
+        }
+
+        /* THE SUN (THERMAL CORE) */
+        .sun {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6%; /* Scaled relative to the container */
+            aspect-ratio: 1 / 1;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: radial-gradient(circle, #ffffff 10%, #ffff00 30%, #ff3300 60%, #cc00ff 100%);
+            box-shadow: 
+                0 0 30px 10px rgba(255, 50, 0, 0.6),
+                inset 0 0 5px #ffffff;
+            z-index: 50;
+        }
+
+        /* THE EXPANDING THERMAL RIPPLE */
+        .ripple {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 
+                0 0 15px 5px rgba(255, 255, 0, 0.5),
+                0 0 30px 10px rgba(255, 0, 0, 0.4),
+                inset 0 0 20px 5px rgba(255, 0, 0, 0.3);
+            width: 0;
+            height: 0;
+            opacity: 0;
+            z-index: 45;
+        }
+
+        /* ORBITAL RINGS */
+        .orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 1px dashed rgba(0, 255, 255, 0.15);
+            z-index: 20;
+        }
+
+        /* PLANET WRAPPERS */
+        .planet-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(var(--angle)); 
+        }
+
+        /* THE PLANETS - COLD STATE */
+        .planet {
+            position: absolute;
+            top: -2px; /* Anchor to the orbit line */
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(calc(var(--angle) * -1)); 
+            border-radius: 50%;
+            background: #000033;
+            box-shadow: inset -2px -2px 5px #000000, 0 0 8px #000088; 
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Sizes (Percentages relative to the main container) */
+        .mercury { width: 1.5%; aspect-ratio: 1/1; }
+        .venus { width: 2.2%; aspect-ratio: 1/1; }
+        .earth { width: 2.5%; aspect-ratio: 1/1; }
+        .mars { width: 1.8%; aspect-ratio: 1/1; }
+        .jupiter { width: 4.5%; aspect-ratio: 1/1; }
+        
+        /* Saturn and Ring */
+        .saturn { width: 4%; aspect-ratio: 1/1; }
+        .saturn::before {
+            content: ''; 
+            position: absolute; 
+            top: 50%; left: 50%; 
+            transform: translate(-50%, -50%) rotate(20deg);
+            width: 180%; height: 30%; /* Ring scales relative to Saturn */
+            border-radius: 50%;
+            border: 1px solid #000066; 
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .uranus { width: 3.2%; aspect-ratio: 1/1; }
+        .neptune { width: 3%; aspect-ratio: 1/1; }
+        .pluto { width: 1.2%; aspect-ratio: 1/1; } 
+
+        /* THERMAL ACTIVE STATE */
+        @keyframes thermalImpact {
+            0% { background: #ffffff; box-shadow: 0 0 20px 5px #ffffff, 0 0 40px 10px #ffff00; }
+            100% { 
+                background: radial-gradient(circle at 30% 30%, #ffff00, #ff3300, #cc00ff); 
+                box-shadow: 0 0 10px 2px #ff3300, 0 0 20px 5px #cc00ff; 
+            }
+        }
+
+        .planet.active {
+            animation: thermalImpact 1s ease forwards;
+        }
+
+        .planet.saturn.active::before {
+            border-color: #ff3300;
+            box-shadow: 0 0 10px #ff3300, inset 0 0 5px #cc00ff;
+        }
+
+        .planet.active .data-label {
+            opacity: 1;
+            transform: translate(-50%, 12px);
+        }
+
+        /* HUD DATA LABELS */
+        .data-label {
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translate(-50%, 0);
+            background: rgba(0, 10, 30, 0.8);
+            border: 1px solid #ff3300;
+            padding: 3px 6px;
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            text-align: center;
+            white-space: nowrap;
+            /* Scanning line effect */
+            background-image: linear-gradient(rgba(255, 51, 0, 0.2) 1px, transparent 1px);
+            background-size: 100% 4px;
+        }
+
+        .data-label strong {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffaa00; 
+        }
+
+        .data-label span {
+            font-family: monospace;
+            font-size: 0.65rem;
+            color: #ffffff;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="exhibit-card">
+        
+        <div class="dashboard">
+            <h1>Thermal Signature Tracking</h1>
+            <div class="dashboard-metrics">
+                <div class="clock-container">
+                    <div class="clock" id="main-clock">00H : 00M : 00S</div>
+                    <div class="clock-label">Solar Light Travel Time</div>
+                </div>
+                <button id="launch-btn">Emit Solar Flare</button>
+            </div>
+        </div>
+
+        <div class="simulation-window">
+            <div class="solar-system" id="solar-system">
+                <div class="sun"></div>
+                <div class="ripple" id="ripple"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* 
+           PLANETARY DATA (Container Scaling)
+           radiusPct maps the orbit to a percentage of the container box. 
+           50% is the absolute edge of the box.
+        */
+        const maxRealTime = 19700; // Pluto
+        const animationDurationMs = 15000; 
+        const maxRadiusPct = 50; 
+
+        const planets = [
+            { id: 'mercury', name: 'Mercury', radiusPct: 7, angle: 45, realTimeSec: 193 },
+            { id: 'venus', name: 'Venus', radiusPct: 12, angle: 120, realTimeSec: 360 },
+            { id: 'earth', name: 'Earth', radiusPct: 17, angle: 210, realTimeSec: 499 },
+            { id: 'mars', name: 'Mars', radiusPct: 22, angle: 330, realTimeSec: 760 },
+            { id: 'jupiter', name: 'Jupiter', radiusPct: 29, angle: 75, realTimeSec: 2595 },
+            { id: 'saturn', name: 'Saturn', radiusPct: 36, angle: 180, realTimeSec: 4778 },
+            { id: 'uranus', name: 'Uranus', radiusPct: 42, angle: 285, realTimeSec: 9575 },
+            { id: 'neptune', name: 'Neptune', radiusPct: 46, angle: 15, realTimeSec: 14983 },
+            { id: 'pluto', name: 'Pluto', radiusPct: 49, angle: 150, realTimeSec: 19700 } 
+        ];
+
+        const solarSystem = document.getElementById('solar-system');
+        const ripple = document.getElementById('ripple');
+        const mainClock = document.getElementById('main-clock');
+        const launchBtn = document.getElementById('launch-btn');
+
+        // Helper: Format seconds into HH : MM : SS
+        function formatTime(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = Math.floor(totalSeconds % 60);
+            const pad = (num) => num.toString().padStart(2, '0');
+            return `${pad(h)}H : ${pad(m)}M : ${pad(s)}S`;
+        }
+
+        // 1. Build the Solar System HTML dynamically
+        planets.forEach(p => {
+            const orbit = document.createElement('div');
+            orbit.className = 'orbit';
+            orbit.style.width = `${p.radiusPct * 2}%`;
+            orbit.style.height = `${p.radiusPct * 2}%`;
+            
+            const container = document.createElement('div');
+            container.className = 'planet-container';
+            container.style.setProperty('--angle', `${p.angle}deg`);
+            
+            const planet = document.createElement('div');
+            planet.className = `planet ${p.id}`;
+            planet.id = `node-${p.id}`;
+            
+            const label = document.createElement('div');
+            label.className = 'data-label';
+            label.innerHTML = `<strong>${p.name}</strong><span>${formatTime(p.realTimeSec)}</span>`;
+            
+            planet.appendChild(label);
+            container.appendChild(planet);
+            orbit.appendChild(container);
+            solarSystem.appendChild(orbit);
+
+            p.activationThreshold = p.radiusPct / maxRadiusPct;
+            p.activated = false;
+        });
+
+        // 2. Animation Logic
+        let animationStartTime = null;
+        let animationFrameId = null;
+
+        function resetSimulation() {
+            ripple.style.opacity = '0';
+            ripple.style.width = '0%';
+            ripple.style.height = '0%';
+            mainClock.innerText = '00H : 00M : 00S';
+            
+            planets.forEach(p => {
+                p.activated = false;
+                document.getElementById(`node-${p.id}`).classList.remove('active');
+            });
+        }
+
+        function animateRipple(timestamp) {
+            if (!animationStartTime) animationStartTime = timestamp;
+            
+            const elapsed = timestamp - animationStartTime;
+            let progress = elapsed / animationDurationMs;
+            
+            if (progress > 1) progress = 1;
+
+            // Grow the Ripple as a percentage of the container window
+            const currentRipplePct = (progress * maxRadiusPct) * 2;
+            ripple.style.width = `${currentRipplePct}%`;
+            ripple.style.height = `${currentRipplePct}%`;
+
+            // Update Time
+            const currentSimulatedTime = progress * maxRealTime;
+            mainClock.innerText = formatTime(currentSimulatedTime);
+
+            // Check for Planet Intersection
+            planets.forEach(p => {
+                if (!p.activated && progress >= p.activationThreshold) {
+                    p.activated = true;
+                    document.getElementById(`node-${p.id}`).classList.add('active');
+                }
+            });
+
+            if (progress < 1) {
+                animationFrameId = requestAnimationFrame(animateRipple);
+            } else {
+                launchBtn.disabled = false;
+                launchBtn.innerText = "Re-emit Flare";
+                ripple.style.opacity = '0';
+                ripple.style.transition = 'opacity 1.5s ease'; 
+            }
+        }
+
+        // 3. Button Listener
+        launchBtn.addEventListener('click', () => {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            resetSimulation();
+            
+            launchBtn.disabled = true;
+            launchBtn.innerText = "Scanning...";
+            
+            ripple.style.transition = 'none';
+            ripple.style.opacity = '1';
+            
+            animationStartTime = null;
+            animationFrameId = requestAnimationFrame(animateRipple);
+        });
+
+    </script>
+</body>
+</html>

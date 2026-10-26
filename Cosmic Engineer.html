@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Cosmic Engineer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="ui-layer">
+        <h1>THE COSMIC ENGINEER</h1>
+        <p id="mission-text">Mission: Establish a stable orbit around the Alpha Star.</p>
+        
+        <div class="controls">
+            <label>Planet Mass: <span id="mass-val">10</span></label>
+            <input type="range" id="mass-slider" min="1" max="50" value="10">
+            
+            <label>Launch Velocity: <span id="vel-val">5</span></label>
+            <input type="range" id="vel-slider" min="1" max="15" value="5">
+            
+            <button id="launch-btn">Launch Planet</button>
+            <button id="reset-btn">Reset System</button>
+        </div>
+        
+        <div id="telemetry">
+            <p>System Status: <span id="status">Awaiting Launch</span></p>
+            <p>Orbital Velocity: <span id="velocity-readout">0.00</span> km/s</p>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 1. Load Three.js first -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- 2. Load our game files in order -->
+    <script src="js/math.js"></script>
+    <script src="js/collisions.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
